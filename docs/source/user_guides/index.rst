@@ -10,3 +10,4 @@ User guides
     lifetime_distributions.ipynb
     lifetime_regressions.ipynb
     semiparametric_regression.ipynb
+    nhpp.rst
