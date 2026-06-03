@@ -140,7 +140,9 @@ class NonHomogeneousPoissonProcess(ParametricModel):
 
         """
         frozen_nhpp = self.freeze(*args)
-        return frozen_nhpp.sample(nb_samples, time_window=time_window, a0=a0, ar=ar, seed=seed)
+        return frozen_nhpp.sample(
+            nb_samples, time_window=time_window, a0=a0, ar=ar, seed=seed
+        )
 
     def generate_failure_data(
         self,
@@ -259,7 +261,9 @@ class FrozenNonHomogeneousPoissonProcess(ParametricModel):
     Non-homogeneous Poisson process.
     """
 
-    lifetime_model: FrozenParametricLifetimeModel
+    lifetime_model: FrozenParametricLifetimeModel[
+        *tuple[ST | NumpyST | ArrayND[NumpyST], ...]
+    ]
 
     def __init__(
         self,
