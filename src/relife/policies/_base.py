@@ -1,146 +1,235 @@
-from abc import ABC
-from typing import Generic, Literal, TypeAlias, TypeVar
+"""Base classes and cost helpers for maintenance policies."""
+
+from abc import ABC, abstractmethod
+from typing import Generic, TypeVar, overload
 
 import numpy as np
-from optype.numpy import (
-    Array,
-    Array1D,
-    Array2D,
-    ArrayND,
-    is_array_1d,
-    is_array_2d,
-)
+import optype.numpy as onp
 
-from relife.lifetime_models._base import (
-    ParametricLifetimeModel,
+from relife._rewards import (
+    compute_rewards,
+    discounting_annuity_factor,
+    discounting_factor,
 )
-from relife.lifetime_models._conditional_models import get_conditional_lifetime_model
-from relife.rewards import ExponentialDiscounting, Reward
-from relife.stochastic_processes._renewal_processes import (
-    reshape_a0_ar,
+from relife.base import ParametricModel
+from relife.lifetime_models import ParametricLifetimeModel
+from relife.typing import (
+    CoercibleFloat64_1D,
+    CoercibleFloat64_ND,
+    Float64_1D,
+    Float64_ND,
+    Timeline,
 )
-
-__all__ = ["OneCycleExpectedCosts", "BaseReplacementPolicy"]
-
-ST: TypeAlias = int | float
-NumpyST: TypeAlias = np.floating | np.uint
 
 
 class OneCycleExpectedCosts:
+    """Expected cost computations for one-cycle policies."""
+
     lifetime_model: ParametricLifetimeModel[()]
-    reward: Reward
-    discounting: ExponentialDiscounting
     period_before_discounting: float
 
     def __init__(
         self,
         lifetime_model: ParametricLifetimeModel[()],
-        reward: Reward,
-        discounting_rate: float = 0.0,
         period_before_discounting: float = 1.0,
     ) -> None:
-        self.reward = reward
-        self.discounting = ExponentialDiscounting(discounting_rate)
         if period_before_discounting <= 0:
             raise ValueError("The period_before_discounting must be greater than 0")
         self.period_before_discounting = period_before_discounting
         self.lifetime_model = lifetime_model
 
-    @reshape_a0_ar
+    @overload
     def expected_net_present_value(
         self,
         tf: float,
         nb_steps: int,
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-    ) -> tuple[Array1D[np.float64], Array1D[np.float64] | Array2D[np.float64]]:
-        timeline = np.atleast_2d(np.linspace(0, tf, nb_steps, dtype=np.float64))
+        *,
+        cf: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]: ...
+    @overload
+    def expected_net_present_value(
+        self,
+        tf: float,
+        nb_steps: int,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D,
+        ar: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]: ...
+    def expected_net_present_value(
+        self,
+        tf: float,
+        nb_steps: int,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D | None = None,
+        ar: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]:
+        """Compute the expected net present value on a finite timeline."""
+        timeline = np.linspace(0, tf, nb_steps, dtype=np.float64)
         etc = np.asarray(
-            get_conditional_lifetime_model(
-                self.lifetime_model, a0=a0, ar=ar
-            ).ls_integrate(
+            self.lifetime_model.apply_condition(a0=a0, ar=ar).ls_integrate(
                 lambda x: (
-                    self.reward.conditional_expectation(x, a0)
-                    * self.discounting.factor(x)
+                    compute_rewards(x, a0=a0, cp=cp, cf=cf)
+                    * discounting_factor(x, discounting_rate)
                 ),
                 np.zeros_like(timeline),
                 timeline,
+                func_args=tuple(arg for arg in (cf, a0, cp, ar) if arg is not None),
                 deg=15,
             ),
             dtype=float,
         )  # (nb_steps,) or (m, nb_steps)
-        if timeline.ndim == 2:
-            timeline = timeline[0, :]
-        assert is_array_1d(timeline)  # typeguard
         return timeline, etc  # (nb_steps,) and (nb_steps,)/(m, nb_steps)
 
-    @reshape_a0_ar
+    @overload
     def expected_equivalent_annual_cost(
         self,
         tf: float,
         nb_steps: int,
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-    ) -> tuple[Array1D[np.float64], Array1D[np.float64] | Array2D[np.float64]]:
-        timeline = np.atleast_2d(np.linspace(0, tf, nb_steps, dtype=np.float64))
-        value = self._expected_equivalent_annual_cost(timeline, ar=ar, a0=a0)
-        if timeline.ndim == 2:
-            timeline = timeline[0, :]  # (nb_steps,)
-        assert is_array_1d(timeline)  # typeguard
-        assert is_array_1d(value) or is_array_2d(value)
+        *,
+        cf: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]: ...
+    @overload
+    def expected_equivalent_annual_cost(
+        self,
+        tf: float,
+        nb_steps: int,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D,
+        ar: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]: ...
+    def expected_equivalent_annual_cost(
+        self,
+        tf: float,
+        nb_steps: int,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D | None = None,
+        ar: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]:
+        """Compute the expected equivalent annual cost on a finite timeline."""
+        timeline = np.linspace(0, tf, nb_steps, dtype=np.float64)
+        value = self._expected_equivalent_annual_cost(
+            timeline, ar=ar, a0=a0, cf=cf, cp=cp, discounting_rate=discounting_rate
+        )
+        assert onp.is_array_1d(value) or onp.is_array_2d(value)
         return timeline, value  # (nb_steps,) or (m, nb_steps)
 
-    @reshape_a0_ar
+    @overload
     def asymptotic_expected_net_present_value(
         self,
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-    ) -> np.float64 | Array1D[np.float64]:
+        *,
+        cf: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D: ...
+    @overload
+    def asymptotic_expected_net_present_value(
+        self,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D,
+        ar: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D: ...
+    def asymptotic_expected_net_present_value(
+        self,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D | None = None,
+        ar: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D:
+        """Compute the asymptotic expected net present value."""
         # reward partial expectation
         return np.squeeze(
-            get_conditional_lifetime_model(
-                self.lifetime_model, a0=a0, ar=ar
-            ).ls_integrate(
+            self.lifetime_model.apply_condition(a0=a0, ar=ar).ls_integrate(
                 lambda x: (
-                    self.reward.conditional_expectation(x, a0)
-                    * self.discounting.factor(x)
+                    compute_rewards(x, a0=a0, cf=cf, cp=cp, ar=ar)
+                    * discounting_factor(x, rate=discounting_rate)
                 ),
-                np.float64(0.0),
-                np.asarray(np.inf),
-                deg=15,
+                0.0,
+                np.inf,
+                func_args=tuple(arg for arg in (cf, a0, cp, ar) if arg is not None),
             )
         )
 
-    @reshape_a0_ar
+    @overload
     def asymptotic_expected_equivalent_annual_cost(
         self,
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-    ) -> np.float64 | Array1D[np.float64]:
-        timeline = np.atleast_2d(np.array(np.inf))  # (1, 1) to ensure broadcasting
-        value = self._expected_equivalent_annual_cost(timeline, a0=a0, ar=ar)
-        assert is_array_1d(value) or isinstance(value, np.float64)  # typeguard
+        *,
+        cf: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D: ...
+    @overload
+    def asymptotic_expected_equivalent_annual_cost(
+        self,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D,
+        ar: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D: ...
+    def asymptotic_expected_equivalent_annual_cost(
+        self,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D | None = None,
+        ar: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D:
+        """Compute the asymptotic expected equivalent annual cost."""
+        value = self._expected_equivalent_annual_cost(
+            np.array(np.inf),
+            a0=a0,
+            ar=ar,
+            cp=cp,
+            cf=cf,
+            discounting_rate=discounting_rate,
+        )
+        assert onp.is_array_1d(value) or isinstance(value, np.float64)  # typeguard
         return value
 
-    @reshape_a0_ar
     def _expected_equivalent_annual_cost(
         self,
-        timeline: ArrayND[np.float64],
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-    ) -> np.float64 | Array1D[np.float64] | Array2D[np.float64]:
-        # timeline : (nb_steps,) or (m, nb_steps)
-        def f(x: ST | NumpyST | ArrayND[NumpyST]) -> np.float64 | ArrayND[np.float64]:
+        timeline: onp.ArrayND[np.float64],
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D | None = None,
+        ar: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D | onp.Array2D[np.float64]:
+        def f(x: CoercibleFloat64_ND) -> Float64_ND:
             # avoid zero division + 1e-6
             return (
-                self.reward.conditional_expectation(x, a0)
-                * self.discounting.factor(x)
-                / (self.discounting.annuity_factor(x) + 1e-6)
+                compute_rewards(x, a0=a0, cf=cf, cp=cp, ar=ar)
+                * discounting_factor(x, rate=discounting_rate)
+                / (discounting_annuity_factor(x, rate=discounting_rate) + 1e-6)
             )
 
-        conditional_model = get_conditional_lifetime_model(
-            self.lifetime_model, a0=a0, ar=ar
-        )
+        if timeline.ndim == 1:
+            timeline = timeline.reshape(-1, 1)
+        conditional_model = self.lifetime_model.apply_condition(a0=a0, ar=ar)
         q0 = conditional_model.cdf(self.period_before_discounting) * f(
             np.asarray(self.period_before_discounting, dtype=float)
         )  # () or (m, 1)
@@ -152,7 +241,11 @@ class OneCycleExpectedCosts:
         a[timeline < self.period_before_discounting] = 0.0  # (nb_steps,)
         # a = np.where(timeline < self.period_before_discounting, 0., a)  # (nb_steps,)
         integral = conditional_model.ls_integrate(
-            f, a, timeline, deg=20
+            f,
+            a,
+            timeline,
+            func_args=tuple(arg for arg in (cf, a0, cp, ar) if arg is not None),
+            deg=100,
         )  # (nb_steps,) or (m, nb_steps) if q0: (), or (m, nb_steps) if q0 : (m, 1)
         mask = np.broadcast_to(
             timeline < self.period_before_discounting, integral.shape
@@ -164,30 +257,353 @@ class OneCycleExpectedCosts:
         return integral
 
 
-M = TypeVar("M")
+M = TypeVar("M", bound=ParametricModel)
 
 
-class BaseReplacementPolicy(Generic[M], ABC):
-    """
-    Base class of replacement policies.
-    """
+class BaseRunToFailurePolicy(ABC, Generic[M]):
+    """Base class for run-to-failure policies."""
 
-    baseline_model: M
-    discounting_rate: float
-    _cost_structure: dict[
-        str,
-        np.float64 | Array[tuple[int, Literal[1]], np.float64],
-    ]
+    baseline: M
 
     def __init__(
         self,
-        baseline_model: M,
-        cost_structure: dict[
-            str,
-            np.float64 | Array[tuple[int, Literal[1]], np.float64],
-        ],
-        discounting_rate: float = 0.0,
+        baseline: M,
     ):
-        self.baseline_model = baseline_model
-        self.discounting_rate = discounting_rate
-        self._cost_structure = cost_structure  # hidden, contains reshaped cost arrays
+        self.baseline = baseline
+
+    @abstractmethod
+    def expected_net_present_value(
+        self,
+        tf: float,
+        nb_steps: int,
+        *,
+        cf: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]:
+        r"""
+        The expected net present value.
+
+        .. math::
+
+            z(t) = \mathbb{E}(Z_t) = \int_{0}^{\infty}\mathbb{E}(Z_t~|~X_1 = x)dF(x)
+
+        where :
+
+        - :math:`t` is the time
+        - :math:`X_1 \sim F` is the random lifetime of the first asset
+        - :math:`Z_t` are the random costs at each time :math:`t`
+        - :math:`\delta` is the discounting rate
+
+        It is computed by solving the renewal equation.
+
+        Parameters
+        ----------
+        tf : float
+            The final time.
+        nb_steps : int
+            The number of steps used to discretize the time.
+        cf : float or 1d array
+            The cost of failure.
+        a0 : float or 1d array, optional
+            Initial ages of the assets.
+        discounting_rate : float, default is 0.
+            The discounting rate used for cost computations.
+
+        Returns
+        -------
+        out : tuple of np.ndarray
+            Timeline and corresponding values.
+        """
+
+    @abstractmethod
+    def expected_equivalent_annual_cost(
+        self,
+        tf: float,
+        nb_steps: int,
+        *,
+        cf: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]:
+        r"""
+        The expected equivalent annual cost.
+
+        .. math::
+
+            q(t) = \dfrac{\delta z(t)}{1 - e^{-\delta t}}
+
+        where :
+
+        - :math:`t` is the time.
+        - :math:`z(t)` is the expected net present value at time :math:`t`.
+        - :math:`\delta` is the discounting rate.
+
+        Parameters
+        ----------
+        tf : float
+            The final time.
+        nb_steps : int
+            The number of steps used to discretize the time.
+        cf : float or 1d array
+            The cost of failure.
+        a0 : float or 1d array, optional
+            Initial ages of the assets.
+        discounting_rate : float, default is 0.
+            The discounting rate used for cost computations.
+
+        Returns
+        -------
+        out : tuple of np.ndarray
+            Timeline and corresponding values.
+        """
+
+    @abstractmethod
+    def asymptotic_expected_net_present_value(
+        self,
+        *,
+        cf: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D:
+        r"""
+        The asymptotic expected net present value.
+
+        .. math::
+
+            \lim_{t\to\infty} z(t)
+
+        Parameters
+        ----------
+        cf : float or 1d array
+            The cost of failure.
+        a0 : float or 1d array, optional
+            Initial ages of the assets.
+        discounting_rate : float, default is 0.
+            The discounting rate used for cost computations.
+
+        Returns
+        -------
+        ndarray
+            The asymptotic expected values.
+        """
+
+    @abstractmethod
+    def asymptotic_expected_equivalent_annual_cost(
+        self,
+        *,
+        cf: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D:
+        r"""
+        The asymptotic expected equivalent annual cost.
+
+        .. math::
+
+            \lim_{t\to\infty} q(t)
+
+        Parameters
+        ----------
+        cf : float or 1d array
+            The cost of failure.
+        a0 : float or 1d array, optional
+            Initial ages of the assets.
+        discounting_rate : float, default is 0.
+            The discounting rate used for cost computations.
+
+        Returns
+        -------
+        ndarray
+            The asymptotic expected values.
+        """
+
+
+class BaseAgeReplacementPolicy(ABC, Generic[M]):
+    """Base class for age replacement policies."""
+
+    baseline: M
+
+    def __init__(self, baseline: M):
+        self.baseline = baseline
+
+    @abstractmethod
+    def expected_net_present_value(
+        self,
+        tf: float,
+        nb_steps: int,
+        *,
+        ar: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+        **costs: CoercibleFloat64_1D,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]:
+        r"""
+        The expected net present value.
+
+        .. math::
+
+            z(t) = \mathbb{E}(Z_t) = \int_{0}^{\infty}\mathbb{E}(Z_t~|~X_1 = x)dF(x)
+
+        where :
+
+        - :math:`t` is the time
+        - :math:`X_1 \sim F` is the random lifetime of the first asset
+        - :math:`Z_t` are the random costs at each time :math:`t`
+        - :math:`\delta` is the discounting rate
+
+        It is computed by solving the renewal equation.
+
+        Parameters
+        ----------
+        tf : float
+            The final time.
+        nb_steps : int
+            The number of steps used to discretize the time.
+        ar : float or 1d array
+            Preventive ages of replacement.
+        a0 : float or 1d array, optional
+            Initial ages of the assets.
+        discounting_rate : float, default is 0.
+            The discounting rate used for cost computations.
+        **costs : floats or 1d arrays
+            Required costs, such as ``cp``, ``cf`` and/or ``cr``.
+
+        Returns
+        -------
+        out : tuple of np.ndarray
+            Timeline and corresponding values.
+        """
+
+    @abstractmethod
+    def expected_equivalent_annual_cost(
+        self,
+        tf: float,
+        nb_steps: int,
+        *,
+        ar: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+        **costs: CoercibleFloat64_1D,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]:
+        r"""
+        The expected equivalent annual cost.
+
+        .. math::
+
+            q(t) = \dfrac{\delta z(t)}{1 - e^{-\delta t}}
+
+        where :
+
+        - :math:`t` is the time.
+        - :math:`z(t)` is the expected net present value at time :math:`t`.
+        - :math:`\delta` is the discounting rate.
+
+        Parameters
+        ----------
+        tf : float
+            The final time.
+        nb_steps : int
+            The number of steps used to discretize the time.
+        ar : float or 1d array
+            Preventive ages of replacement.
+        a0 : float or 1d array, optional
+            Initial ages of the assets.
+        discounting_rate : float, default is 0.
+            The discounting rate used for cost computations.
+        **costs : floats or 1d arrays
+            Required costs, such as ``cp``, ``cf`` and/or ``cr``.
+
+        Returns
+        -------
+        out : tuple of np.ndarray
+            Timeline and corresponding values.
+        """
+
+    @abstractmethod
+    def asymptotic_expected_net_present_value(
+        self,
+        *,
+        ar: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+        **costs: CoercibleFloat64_1D,
+    ) -> Float64_1D:
+        r"""
+        The asymptotic expected net present value.
+
+        .. math::
+
+            \lim_{t\to\infty} z(t)
+
+        Parameters
+        ----------
+        ar : float or 1d array
+            Preventive ages of replacement.
+        a0 : float or 1d array, optional
+            Initial ages of the assets.
+        discounting_rate : float, default is 0.
+            The discounting rate used for cost computations.
+        **costs : floats or 1d arrays
+            Required costs, such as ``cp``, ``cf`` and/or ``cr``.
+
+        Returns
+        -------
+        ndarray
+            The asymptotic expected values.
+        """
+
+    @abstractmethod
+    def asymptotic_expected_equivalent_annual_cost(
+        self,
+        *,
+        ar: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+        **costs: CoercibleFloat64_1D,
+    ) -> Float64_1D:
+        r"""
+        The asymptotic expected equivalent annual cost.
+
+        .. math::
+
+            \lim_{t\to\infty} q(t)
+
+        Parameters
+        ----------
+        ar : float or 1d array
+            Preventive ages of replacement.
+        a0 : float or 1d array, optional
+            Initial ages of the assets.
+        discounting_rate : float, default is 0.
+            The discounting rate used for cost computations.
+        **costs : floats or 1d arrays
+            Required costs, such as ``cp``, ``cf`` and/or ``cr``.
+
+        Returns
+        -------
+        ndarray
+            The asymptotic expected values.
+        """
+
+    @abstractmethod
+    def compute_optimal_ar(
+        self,
+        discounting_rate: float = 0.0,
+        **costs: CoercibleFloat64_1D,
+    ) -> float | onp.Array1D[np.float64]:
+        """
+        Compute the optimal ages of replacement.
+
+        Parameters
+        ----------
+        discounting_rate : float, default is 0.
+            The discounting rate used for cost computations.
+        **costs : floats or 1d arrays
+            Required costs, such as ``cp``, ``cf`` and/or ``cr``.
+
+        Returns
+        -------
+        out : float or 1d array
+            Optimal ages of replacement.
+        """  # noqa: E501

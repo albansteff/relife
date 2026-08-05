@@ -1,57 +1,49 @@
+"""Non-homogeneous Poisson process models."""
+
 from __future__ import annotations
 
 import warnings
 from collections.abc import Sequence
 from dataclasses import field
-from typing import Any, Self, TypeAlias, TypeVarTuple
+from typing import Any, Generic, Self, no_type_check
 
 import numpy as np
-from numpy.typing import NDArray
-from optype.numpy import Array1D, Array2D, ArrayND
+import optype.numpy as onp
+from typing_extensions import override
 
 from relife.base import FittingResults, ParametricModel
-from relife.lifetime_models._base import (
+from relife.lifetime_models import (
     FittableParametricLifetimeModel,
-    FrozenParametricLifetimeModel,
-    LifetimeLikelihood,
+    ParametricLifetimeModel,
 )
-from relife.stochastic_processes._sample import StochasticSampleMapping
-
-__all__ = [
-    "NonHomogeneousPoissonProcess",
-    "FrozenNonHomogeneousPoissonProcess",
-]
-
-Ts = TypeVarTuple("Ts")
-ST: TypeAlias = int | float
-NumpyST: TypeAlias = np.floating | np.uint
+from relife.typing import CoercibleFloat64_ND, CovarTs, Float64_ND
 
 
-class NonHomogeneousPoissonProcess(ParametricModel):
+class NonHomogeneousPoissonProcess(ParametricModel, Generic[*CovarTs]):
     """
     Non-homogeneous Poisson process.
+
+    Parameters
+    ----------
+    lifetime_model : ParametricLifetimeModel
+        Lifetime model defining the process intensity.
     """
 
-    lifetime_model: FittableParametricLifetimeModel[
-        *tuple[ST | NumpyST | ArrayND[NumpyST], ...]
-    ]
     fitting_results: FittingResults | None
+    lifetime_model: ParametricLifetimeModel[*CovarTs]  # not accurate is case of fit
 
     def __init__(
         self,
-        lifetime_model: FittableParametricLifetimeModel[
-            *tuple[ST | NumpyST | ArrayND[NumpyST], ...]
-        ],
+        lifetime_model: ParametricLifetimeModel[*CovarTs],
     ):
         super().__init__()
         self.lifetime_model = lifetime_model
-        self.fitting_results = None
 
     def intensity(
         self,
-        time: ST | NumpyST | ArrayND[NumpyST],
-        *args: ST | NumpyST | ArrayND[NumpyST],
-    ) -> np.float64 | ArrayND[np.float64]:
+        time: CoercibleFloat64_ND,
+        *args: *CovarTs,
+    ) -> Float64_ND:
         """
         The intensity function of the process.
 
@@ -59,7 +51,6 @@ class NonHomogeneousPoissonProcess(ParametricModel):
         ----------
         time : float or np.ndarray
             Elapsed time value(s) at which to compute the function.
-            If ndarray, allowed shapes are ``()``, ``(n,)`` or ``(m, n)``.
         *args : float or np.ndarray
             Additional arguments needed by the model.
 
@@ -72,9 +63,9 @@ class NonHomogeneousPoissonProcess(ParametricModel):
 
     def cumulative_intensity(
         self,
-        time: ST | NumpyST | ArrayND[NumpyST],
-        *args: ST | NumpyST | ArrayND[NumpyST],
-    ) -> np.float64 | ArrayND[np.float64]:
+        time: CoercibleFloat64_ND,
+        *args: *CovarTs,
+    ) -> Float64_ND:
         """
         The cumulative intensity function of the process.
 
@@ -82,7 +73,6 @@ class NonHomogeneousPoissonProcess(ParametricModel):
         ----------
         time : float or np.ndarray
             Elapsed time value(s) at which to compute the function.
-            If ndarray, allowed shapes are ``()``, ``(n,)`` or ``(m, n)``.
         *args : float or np.ndarray
             Additional arguments needed by the model.
 
@@ -93,11 +83,9 @@ class NonHomogeneousPoissonProcess(ParametricModel):
         """
         return self.lifetime_model.chf(time, *args)
 
-    def freeze(
-        self, *args: ST | NumpyST | ArrayND[NumpyST]
-    ) -> FrozenNonHomogeneousPoissonProcess:
+    def freeze(self, *args: *CovarTs) -> FrozenNonHomogeneousPoissonProcess[*CovarTs]:
         """
-        Freeze any arguments required by the process into the object data.
+        Return a process with additional arguments stored.
 
         Parameters
         ----------
@@ -106,137 +94,81 @@ class NonHomogeneousPoissonProcess(ParametricModel):
 
         Returns
         -------
-        FrozenParametricModel
+        FrozenNonHomogeneousPoissonProcess
         """
         return FrozenNonHomogeneousPoissonProcess(self, *args)
 
-    def sample(
-        self,
-        nb_samples: int,
-        time_window: tuple[float, float],
-        *args: ST | NumpyST | ArrayND[NumpyST],
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-        seed: int
-        | np.random.Generator
-        | np.random.BitGenerator
-        | np.random.RandomState
-        | None = None,
-    ) -> StochasticSampleMapping:
-        """Renewal data sampling.
-
-        Samples data and encapsulates them in a StochasticSampleMapping object.
-
-        Parameters
-        ----------
-        nb_samples : int
-            The number of samples
-        time_window : tuple of two floats
-            Time window in which data are sampled
-        *args : float or np.ndarray
-            Additional arguments needed by the model.
-        seed : int, optional
-            Random seed, by default None.
-
-        """
-        frozen_nhpp = self.freeze(*args)
-        return frozen_nhpp.sample(
-            nb_samples, time_window=time_window, a0=a0, ar=ar, seed=seed
-        )
-
-    def generate_failure_data(
-        self,
-        nb_samples: int,
-        time_window: tuple[float, float],
-        *args: ST | NumpyST | ArrayND[NumpyST],
-        seed: int
-        | np.random.Generator
-        | np.random.BitGenerator
-        | np.random.RandomState
-        | None = None,
-    ) -> dict[str, Any]:
-        r"""
-        .. warning:: Not implemented yet
-        """
-        raise NotImplementedError(
-            "Failure data methods for stochastic processes will be introduced in a future release"  # noqa: E501
-        )
-
     def fit(
         self,
-        ages_at_events: Array1D[np.float64],
+        ages_at_events: onp.Array1D[np.float64],
         events_assets_ids: Sequence[str],
-        first_ages: Array1D[np.float64] | None = None,
-        last_ages: Array1D[np.float64] | None = None,
-        lifetime_model_args: Array1D[Any]
-        | Array2D[Any]
-        | tuple[Array1D[Any] | Array2D[Any], ...]
+        first_ages: onp.Array1D[np.float64] | None = None,
+        last_ages: onp.Array1D[np.float64] | None = None,
+        lifetime_model_args: onp.Array1D[Any]
+        | onp.Array2D[Any]
+        | tuple[onp.Array1D[Any] | onp.Array2D[Any], ...]
         | None = None,
         assets_ids: Sequence[str] | None = None,
         **kwargs: Any,
     ) -> Self:
         """
-        Estimation of the process parameters from recurrent failure data.
+        Estimate process parameters from recurrent failure data.
 
         Parameters
         ----------
-        ages_at_events : 1D array of float
-            Array of float containing the ages of each asset when the events occured
+        ages_at_events : 1d array of floats
+            Ages of each asset when events occurred.
         events_assets_ids : sequence of hashable
-            Sequence object containing the ids of each assets corresponding to
-            each ages.
-        first_ages : 1D array of float, optional
-            Array of float containing the ages of each asset before observing
-            events. If set, ``assets_ids`` is needed and its length
-            must equal the size of ``first_ages``.
-        last_ages : 1D array of float, optional
-            Array of float containing the ages of each asset at the end of the
-            observation period. If set, ``assets_ids`` is needed and its length
-            must equal the size of ``last_ages``.
+            Asset ids corresponding to ``ages_at_events``.
+        first_ages : 1d array of floats, optional
+            Asset ages before the observation period. If set, ``assets_ids`` is
+            required and must have the same length.
+        last_ages : 1d array of floats, optional
+            Asset ages at the end of the observation period. If set,
+            ``assets_ids`` is required and must have the same length.
         lifetime_model_args : tuple of np.ndarray, optional
-            Additional arguments needed by the model. If set, ``assets_ids`` is
-            needed. For 1D array, the size must equal the length of
-            ``assets_ids``. For 2D array (e.g. covar of regression), the length
-            of first axis must equal the length of ``assets_ids``.
+            Additional arguments needed by the lifetime model. If set,
+            ``assets_ids`` is required. For 1d arrays, the size must equal the
+            length of ``assets_ids``. For 2d arrays, the first axis length must
+            equal the length of ``assets_ids``.
         assets_ids : sequence of hashable, optional
-            Only needed if either ``first_ages``, ``last_ages`` or
-            ``model_args`` is filled. It must be a sequence object containing
-            the unique ids corresponding to each values contained in
-            ``first_ages``, ``last_ages`` and/or ``model_args``
+            Unique asset ids corresponding to values in ``first_ages``,
+            ``last_ages`` and/or ``lifetime_model_args``.
 
         Returns
         -------
         Self
-            The current object with the estimated parameters setted inplace.
+            The current object with estimated parameters set in place.
 
         Examples
         --------
 
         Ages of assets AB2 and CX13 at each event.
 
-        >>> from relife.lifetime_model import Weibull
-        >>> from relife.stochastic_process import NonHomogeneousPoissonProcess
+        >>> from relife.lifetime_models import Weibull
+        >>> from relife.stochastic_processes import NonHomogeneousPoissonProcess
         >>> nhpp = NonHomogeneousPoissonProcess(Weibull())
         >>> nhpp.fit(
             np.array([11., 13., 21., 25., 27.]),
             ("AB2", "CX13", "AB2", "AB2", "CX13"),
         )
 
-        With additional information and model args (regression of 2 coefficients)
+        With additional information and lifetime model args.
 
-        >>> from relife.lifetime_model import ParametricProportionalHazard
+        >>> from relife.lifetime_models import ParametricProportionalHazard
         >>> nhpp = NonHomogeneousPoissonProcess(ParametricProportionalHazard())
         >>> nhpp.fit(
             np.array([11., 13., 21., 25., 27.]),
             ("AB2", "CX13", "AB2", "AB2", "CX13"),
             first_ages = np.array([10., 12.]),
             last_ages = np.array([35., 60.]),
-            model_args = (np.array([[1.2, 5.5], [37.2, 22.2]]),) # 2d array of 2 raws (2 assets) and 2 columns (2 coefficients)
+            lifetime_model_args=(np.array([[1.2, 5.5], [37.2, 22.2]]),)
         )
         """  # noqa: E501
         warnings.warn(  # noqa: B028
             "Fit method of NHPP will change in a future release", DeprecationWarning
         )
+        assert isinstance(self.lifetime_model, FittableParametricLifetimeModel)
 
         nhpp_data = NHPPData(
             ages_at_events,
@@ -247,35 +179,34 @@ class NonHomogeneousPoissonProcess(ParametricModel):
             assets_ids=assets_ids,
         )
         time, event, entry, args = nhpp_data.to_lifetime_data()
-        optimizer: LifetimeLikelihood[
-            FittableParametricLifetimeModel[*tuple[Any, ...]]
-        ] = self.lifetime_model.init_likelihood(time, args, event, entry, **kwargs)
+        optimizer = self.lifetime_model.init_likelihood(
+            time, args, event, entry, **kwargs
+        )
         fitting_results = optimizer.optimize()
         self.set_params(fitting_results.optimal_params)
         self.fitting_results = fitting_results
         return self
 
 
-class FrozenNonHomogeneousPoissonProcess(ParametricModel):
-    """
-    Non-homogeneous Poisson process.
-    """
+class FrozenNonHomogeneousPoissonProcess(
+    NonHomogeneousPoissonProcess[()], Generic[*CovarTs]
+):
+    """Non-homogeneous Poisson process with additional arguments stored."""
 
-    lifetime_model: FrozenParametricLifetimeModel[
-        *tuple[ST | NumpyST | ArrayND[NumpyST], ...]
-    ]
+    unfrozen: NonHomogeneousPoissonProcess[*CovarTs]
+    args: tuple[*CovarTs]
 
     def __init__(
         self,
-        nhpp: NonHomogeneousPoissonProcess,
-        *args: ST | NumpyST | ArrayND[NumpyST],
+        nhpp: NonHomogeneousPoissonProcess[*CovarTs],
+        *args: *CovarTs,
     ):
-        super().__init__()
-        self.lifetime_model = nhpp.lifetime_model.freeze(*args)
+        super().__init__(nhpp.lifetime_model.freeze(*args))
+        self.unfrozen = nhpp
+        self.args = args
 
-    def intensity(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    @override
+    def intensity(self, time: CoercibleFloat64_ND) -> Float64_ND:
         """
         The intensity function of the process.
 
@@ -283,7 +214,6 @@ class FrozenNonHomogeneousPoissonProcess(ParametricModel):
         ----------
         time : float or np.ndarray
             Elapsed time value(s) at which to compute the function.
-            If ndarray, allowed shapes are ``()``, ``(n,)`` or ``(m, n)``.
 
         Returns
         -------
@@ -292,9 +222,8 @@ class FrozenNonHomogeneousPoissonProcess(ParametricModel):
         """
         return self.lifetime_model.hf(time)
 
-    def cumulative_intensity(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    @override
+    def cumulative_intensity(self, time: CoercibleFloat64_ND) -> Float64_ND:
         """
         The cumulative intensity function of the process.
 
@@ -302,7 +231,6 @@ class FrozenNonHomogeneousPoissonProcess(ParametricModel):
         ----------
         time : float or np.ndarray
             Elapsed time value(s) at which to compute the function.
-            If ndarray, allowed shapes are ``()``, ``(n,)`` or ``(m, n)``.
         *args : float or np.ndarray
             Additional arguments needed by the model.
 
@@ -313,114 +241,34 @@ class FrozenNonHomogeneousPoissonProcess(ParametricModel):
         """
         return self.lifetime_model.chf(time)
 
-    def sample(
-        self,
-        nb_samples: int,
-        time_window: tuple[float, float],
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-        seed: int
-        | np.random.Generator
-        | np.random.BitGenerator
-        | np.random.RandomState
-        | None = None,
-    ) -> StochasticSampleMapping:
-        """Renewal data sampling.
-
-        This function will sample data and encapsulate them in an object.
-
-        Parameters
-        ----------
-        nb_samples : int
-            The number of samples.
-        tf : float
-            Time at the end of the observation.
-        t0 : float, default 0
-            Time at the beginning of the observation.
-        seed : int, optional
-            Random seed, by default None.
-
-        """
-        from ._sample import NonHomogeneousPoissonProcessIterable
-
-        iterable = NonHomogeneousPoissonProcessIterable(
-            self, nb_samples, time_window=time_window, a0=a0, ar=ar, seed=seed
-        )
-        struct_array = np.concatenate(tuple(iterable))
-        struct_array = np.sort(
-            struct_array, order=("asset_id", "sample_id", "timeline")
-        )
-        return StochasticSampleMapping.from_struct_array(
-            struct_array, iterable.nb_assets, nb_samples
-        )
-
-    def generate_failure_data(
-        self,
-        nb_samples: int,
-        time_window: tuple[float, float],
-        seed: int
-        | np.random.Generator
-        | np.random.BitGenerator
-        | np.random.RandomState
-        | None = None,
-    ) -> dict[str, Any]:
-        """Generates failure data.
-
-        Generates failure data that can be used to fit a non-homogeneous Poisson process.
-
-        Parameters
-        ----------
-        nb_samples : int
-            The number of samples.
-        time_window : tuple of two floats
-            Time window in which data are sampled
-        seed : int, optional
-            Random seed, by default None.
-
-        Returns
-        -------
-        A dict of ages_at_events, events_assets_ids, first_ages, last_ages, model_args and assets_ids
-        """  # noqa: E501
-        raise NotImplementedError(
-            "Failure data methods for stochastic processes will be introduced in a future release"  # noqa: E501
-        )
-
-
-# typeguard function
-# def is_non_homogeneous_poisson_process(
-#     model: NonHomogeneousPoissonProcess[M] | FrozenParametricLifetimeModel[M],
-# ) -> TypeIs[NonHomogeneousPoissonProcess[M] | FrozenParametricLifetimeModel[M]]:
-#     """
-#     Checks if model is a non-homogeneous Poisson process.
-#     """
-#
-#     return isinstance(
-#         model, (NonHomogeneousPoissonProcess, FrozenNonHomogeneousPoissonProcess)
-#     )
-
 
 class NHPPData:
-    ages_at_events: Array1D[np.float64]
-    events_assets_ids: Array1D[np.uint32]
-    first_ages: Array1D[np.float64] | None
-    last_ages: Array1D[np.float64] | None
-    model_args: (
-        Array1D[Any] | Array2D[Any] | tuple[Array1D[Any] | Array2D[Any], ...] | None
-    )
-    assets_ids: Array1D[np.uint32] | None
+    """Preprocessed recurrent event data for NHPP fitting."""
 
-    first_age_index: NDArray[np.int64] = field(repr=False, init=False)
-    last_age_index: NDArray[np.int64] = field(repr=False, init=False)
+    ages_at_events: onp.Array1D[np.float64]
+    events_assets_ids: onp.Array1D[np.uint32]
+    first_ages: onp.Array1D[np.float64] | None
+    last_ages: onp.Array1D[np.float64] | None
+    model_args: (
+        onp.Array1D[Any]
+        | onp.Array2D[Any]
+        | tuple[onp.Array1D[Any] | onp.Array2D[Any], ...]
+        | None
+    )
+    assets_ids: onp.Array1D[np.uint32] | None
+
+    first_age_index: onp.Array1D[np.int64] = field(repr=False, init=False)
+    last_age_index: onp.Array1D[np.int64] = field(repr=False, init=False)
 
     def __init__(
         self,
-        ages_at_events: Array1D[np.float64],
+        ages_at_events: onp.Array1D[np.float64],
         events_assets_ids: Sequence[str],
-        first_ages: Array1D[np.float64] | None = None,
-        last_ages: Array1D[np.float64] | None = None,
-        model_args: Array1D[Any]
-        | Array2D[Any]
-        | tuple[Array1D[Any] | Array2D[Any], ...]
+        first_ages: onp.Array1D[np.float64] | None = None,
+        last_ages: onp.Array1D[np.float64] | None = None,
+        model_args: onp.Array1D[Any]
+        | onp.Array2D[Any]
+        | tuple[onp.Array1D[Any] | onp.Array2D[Any], ...]
         | None = None,
         assets_ids: Sequence[str] | None = None,
     ) -> None:
@@ -530,14 +378,14 @@ class NHPPData:
                     arg = np.atleast_2d(np.asarray(arg, dtype=np.float64))
                     if arg.ndim > 2:
                         raise ValueError(
-                            "Invalid arg shape in model_args. Arrays must be 0, 1 or 2d"
+                            "Invalid arg shape in model_args. onp.Arrays must be 0, 1 or 2d"  # noqa: E501
                         )
                     try:
                         _ = arg.reshape((len(self.assets_ids), -1))
                     except ValueError as err:
                         raise ValueError(
                             """
-                            Invalid arg shape in model_args. Arrays must
+                            Invalid arg shape in model_args. onp.Arrays must
                             coherent with the number of assets given by
                             assets_ids
                             """
@@ -556,14 +404,16 @@ class NHPPData:
                     "If model_args is given, corresponding asset ids must be given in assets_ids"  # noqa: E501
                 )
 
+    @no_type_check
     def to_lifetime_data(
         self,
     ) -> tuple[
-        Array1D[np.float64],
-        Array1D[np.bool_],
-        Array1D[np.float64],
-        Array1D[Any] | Array2D[Any] | tuple[Array1D[Any] | Array2D[Any], ...] | None,
+        onp.Array1D[np.float64],
+        onp.Array1D[np.bool_],
+        onp.Array1D[np.float64],
+        tuple[onp.Array1D[np.float64], ...],
     ]:
+        """Return lifetime data arrays used by lifetime likelihood fitting."""
         event = np.ones_like(self.ages_at_events, dtype=np.bool_)
         # insert_index = np.cumsum(nb_ages_per_asset)
         # insert_index = last_age_index + 1

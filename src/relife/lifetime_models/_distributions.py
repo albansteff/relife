@@ -3,27 +3,26 @@
 from __future__ import annotations
 
 from abc import ABC
-from collections.abc import Callable
+from collections.abc import Sequence
 from typing import (
     Any,
+    Literal,
     Self,
-    TypeAlias,
-    TypeVar,
-    TypeVarTuple,
     final,
 )
 
 import numpy as np
 import numpydoc.docscrape as docscrape  # pyright: ignore[reportMissingTypeStubs]
-from numpy.typing import NDArray
-from optype.numpy import Array1D, Array2D, ArrayND
-from scipy.optimize import Bounds, newton
+import optype.numpy as onp
+from scipy.optimize import Bounds
 from scipy.special import digamma, exp1, gamma, gammaincc, gammainccinv
 from typing_extensions import override
 
-from relife.base import OptimizerConfig
-from relife.quadratures import laguerre_quadrature, legendre_quadrature
-from relife.utils import to_column_2d_if_1d
+from relife.base import FitConfig, FittingResults
+from relife.quadratures import (
+    laguerre_quadrature,
+)
+from relife.typing import CoercibleFloat64_ND, Float64_ND
 
 from ._base import (
     FittableParametricLifetimeModel,
@@ -33,72 +32,50 @@ from ._base import (
     document_args,
 )
 
-__all__ = [
-    "Gompertz",
-    "Weibull",
-    "Gamma",
-    "LogLogistic",
-    "EquilibriumDistribution",
-    "Exponential",
-    "MinimumDistribution",
-]
-
-
-ST: TypeAlias = int | float
-NumpyST: TypeAlias = np.floating | np.uint
-M = TypeVar(
-    "M",
-    bound=FittableParametricLifetimeModel[()],
-)
-
 
 class LifetimeDistribution(FittableParametricLifetimeModel[()], ABC):
     """
     Base class for distribution model.
     """
 
+    fitting_results: FittingResults | None
+
     @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def sf(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    @document_args(base_cls=ParametricLifetimeModel, args_docstring=[])
+    def sf(self, time: CoercibleFloat64_ND) -> Float64_ND:
         return super().sf(time)
 
     @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def isf(
-        self, probability: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    @document_args(base_cls=ParametricLifetimeModel, args_docstring=[])
+    def isf(self, probability: CoercibleFloat64_ND) -> Float64_ND:
         cumulative_hazard_rate = -np.log(
             np.clip(probability, 0, 1 - np.finfo(float).resolution)
         )
         return self.ichf(cumulative_hazard_rate)
 
     @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def cdf(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    @document_args(base_cls=ParametricLifetimeModel, args_docstring=[])
+    def cdf(self, time: CoercibleFloat64_ND) -> Float64_ND:
         return super().cdf(time)
 
     @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def pdf(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    @document_args(base_cls=ParametricLifetimeModel, args_docstring=[])
+    def pdf(self, time: CoercibleFloat64_ND) -> Float64_ND:
         return super().pdf(time)
 
     @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def ppf(
-        self, probability: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    @document_args(base_cls=ParametricLifetimeModel, args_docstring=[])
+    def ppf(self, probability: CoercibleFloat64_ND) -> Float64_ND:
         return super().ppf(probability)
 
     @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def moment(self, n: int) -> np.float64 | ArrayND[np.float64]:
-        return super().moment(n)
+    @document_args(
+        base_cls=ParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def median(self) -> Float64_ND:
+        return self.ppf(0.5)  # no super here to return np.float64
 
     @override
     @document_args(
@@ -106,89 +83,87 @@ class LifetimeDistribution(FittableParametricLifetimeModel[()], ABC):
         args_docstring=[],
         returns=[docscrape.Parameter("out", "np.float64", [""])],
     )
-    def median(self) -> np.float64 | ArrayND[np.float64]:
-        return self.ppf(0.5)  # no super here to return np.float64
+    def jac_sf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        return super().jac_sf(time)
 
     @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def jac_sf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        jac_chf, sf = self.jac_chf(time), self.sf(time)
-        return -jac_chf * sf
-
-    @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def jac_cdf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def jac_cdf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
         return super().jac_cdf(time)
 
     @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def jac_pdf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        jac_hf, hf = self.jac_hf(time), self.hf(time)
-        jac_sf, sf = self.jac_sf(time), self.sf(time)
-        return jac_hf * sf + jac_sf * hf
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def jac_pdf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        return super().jac_pdf(time)
 
     @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
+    @document_args(base_cls=ParametricLifetimeModel, args_docstring=[])
     def rvs(
         self,
-        size: int | tuple[int, int],
+        size: int | tuple[int, ...] | None = None,
         *,
         seed: int
         | np.random.Generator
         | np.random.BitGenerator
         | np.random.RandomState
         | None = None,
-    ) -> np.float64 | ArrayND[np.float64]:
+    ) -> Float64_ND:
         return super().rvs(
             size,
             seed=seed,
         )
 
     @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def ls_integrate(
-        self,
-        func: Callable[
-            [ST | NumpyST | ArrayND[NumpyST]],
-            np.float64 | ArrayND[np.float64],
-        ],
-        a: ST | NumpyST | ArrayND[NumpyST],
-        b: ST | NumpyST | ArrayND[NumpyST],
-        *,
-        deg: int = 10,
-    ) -> np.float64 | ArrayND[np.float64]:
-        return super().ls_integrate(func, a, b, deg=deg)
-
-    @override
     def init_likelihood(
         self,
-        time: Array1D[np.float64],
-        args: Array1D[Any]
-        | Array2D[Any]
-        | tuple[Array1D[Any] | Array2D[Any], ...]
-        | None = None,
-        event: Array1D[np.bool_] | None = None,
-        entry: Array1D[np.float64] | None = None,
+        time: onp.Array1D[np.float64] | onp.Array[tuple[int, Literal[2]], np.float64],
+        args: Sequence[onp.Array1D[np.float64]] | None = None,
+        event: onp.Array1D[np.bool_] | None = None,
+        entry: onp.Array1D[np.float64] | None = None,
         **kwargs: Any,
-    ) -> LifetimeLikelihood[Self]:
+    ) -> LifetimeLikelihood:
         assert args is None
         lifetime_data = LifetimeData(time, event=event, entry=entry)
-        x0 = kwargs.get("x0", init_distrib_params_from_lifetimes(self, lifetime_data))
-        config = OptimizerConfig(x0)
+        fresh_distrib = type(self)()
+        x0 = kwargs.get(
+            "x0", init_distrib_params_from_lifetimes(fresh_distrib, lifetime_data)
+        )
+        config = FitConfig(x0)
         config.scipy_minimize_options["bounds"] = kwargs.get(
-            "bounds", get_distrib_params_bounds(self)
+            "bounds", get_distrib_params_bounds(fresh_distrib)
         )
         config.scipy_minimize_options["method"] = kwargs.get("method", "L-BFGS-B")
         config.covariance_method = kwargs.get(
-            "covariance_method", "2point" if isinstance(self, Gamma) else "cs"
+            "covariance_method", "2point" if isinstance(fresh_distrib, Gamma) else "cs"
         )
-        optimizer = LifetimeLikelihood(self, lifetime_data, config)
-        return optimizer
+        return LifetimeLikelihood(fresh_distrib, lifetime_data, config)
+
+    def fit(
+        self,
+        time: onp.Array1D[np.float64] | onp.Array[tuple[int, Literal[2]], np.float64],
+        event: onp.Array1D[np.bool_] | None = None,
+        entry: onp.Array1D[np.float64] | None = None,
+        **kwargs: Any,
+    ) -> Self:
+
+        optimizer = self.init_likelihood(time, event=event, entry=entry, **kwargs)
+        self.fitting_results = optimizer.optimize()
+        self.set_params(self.fitting_results.optimal_params)
+
+        return self
 
 
 def init_distrib_params_from_lifetimes(
     model: LifetimeDistribution, data: LifetimeData
-) -> Array1D[np.float64]:
+) -> onp.Array1D[np.float64]:
     # flatten censored_time in case it is 2D
     all_time_values = np.concatenate(
         (data.complete_time.flatten(), data.censored_time.flatten())
@@ -245,22 +220,60 @@ class Exponential(LifetimeDistribution):
         If the model is not fitted, the value is None.
     """
 
-    def __init__(self, rate: ST | None = None):
-        super().__init__(rate=rate)
+    def __init__(self, rate: float | None = None):
+        super().__init__(rate)
 
     @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def hf(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    @document_args(base_cls=ParametricLifetimeModel, args_docstring=[])
+    def hf(self, time: CoercibleFloat64_ND) -> Float64_ND:
         return self.get_params()[0] * np.ones_like(time)
 
     @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def chf(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    @document_args(base_cls=ParametricLifetimeModel, args_docstring=[])
+    def chf(self, time: CoercibleFloat64_ND) -> Float64_ND:
         return self.get_params()[0] * time
+
+    @override
+    @document_args(base_cls=ParametricLifetimeModel, args_docstring=[])
+    def ichf(self, cumulative_hazard_rate: CoercibleFloat64_ND) -> Float64_ND:
+        return cumulative_hazard_rate / self.get_params()[0]
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def jac_hf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        if isinstance(time, np.ndarray):
+            jac = np.expand_dims(np.ones_like(time, dtype=np.float64), axis=0)
+        else:
+            jac = np.array([1], dtype=np.float64)
+        return jac
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def jac_chf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        if isinstance(time, np.ndarray):
+            jac = np.expand_dims(time, axis=0).astype(np.float64)
+        else:
+            jac = np.array([time], dtype=np.float64)
+        return jac
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def dhf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        if isinstance(time, np.ndarray):
+            return np.zeros_like(time, dtype=np.float64)
+        return np.asarray(0, dtype=np.float64)
 
     @override
     @document_args(
@@ -281,43 +294,27 @@ class Exponential(LifetimeDistribution):
         return 1 / self.get_params()[0] ** 2
 
     @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def mrl(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def mrl(self, time: CoercibleFloat64_ND) -> Float64_ND:
+        """
+        The mean residual life function.
+
+        Here, the exact mean residual life is computed.
+        Otherwise, `relife.lifetime_model.mrl` function.
+
+        Returns
+        -------
+        out : np.float64 or np.ndarray
+        """
         return 1 / self.get_params()[0] * np.ones_like(time)
 
     @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def ichf(
-        self, cumulative_hazard_rate: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
-        return cumulative_hazard_rate / self.get_params()[0]
-
-    @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def jac_hf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        if isinstance(time, np.ndarray):
-            jac = np.expand_dims(np.ones_like(time, dtype=np.float64), axis=0).copy()
-        else:
-            jac = np.array([1], dtype=np.float64)
-        return jac
-
-    @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def jac_chf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        if isinstance(time, np.ndarray):
-            jac = np.expand_dims(time, axis=0).copy().astype(np.float64)
-        else:
-            jac = np.array([time], dtype=np.float64)
-        return jac
-
-    @override
-    @document_args(base_cls=FittableParametricLifetimeModel, args_docstring=[])
-    def dhf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        if isinstance(time, np.ndarray):
-            return np.zeros_like(time, dtype=np.float64)
-        return np.asarray(0, dtype=np.float64)
+    def __repr__(self) -> str:
+        return f"Exponential(rate={self.get_params()[0].item()!r})"
 
 
 @final
@@ -357,24 +354,26 @@ class Weibull(LifetimeDistribution):
     rate
     """
 
-    def __init__(self, shape: ST | None = None, rate: float | None = None):
-        super().__init__(shape=shape, rate=rate)
+    def __init__(self, shape: float | None = None, rate: float | None = None):
+        super().__init__(shape, rate)
 
     @override
     @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def hf(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    def hf(self, time: CoercibleFloat64_ND) -> Float64_ND:
         shape, rate = self.get_params()
         return shape * rate * (rate * np.asarray(time)) ** (shape - 1)
 
     @override
     @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def chf(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    def chf(self, time: CoercibleFloat64_ND) -> Float64_ND:
         shape, rate = self.get_params()
         return (rate * np.asarray(time)) ** shape
+
+    @override
+    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
+    def ichf(self, cumulative_hazard_rate: CoercibleFloat64_ND) -> Float64_ND:
+        shape, rate = self.get_params()
+        return np.asarray(cumulative_hazard_rate) ** (1 / shape) / rate
 
     @override
     @document_args(
@@ -382,7 +381,49 @@ class Weibull(LifetimeDistribution):
         args_docstring=[],
         returns=[docscrape.Parameter("out", "np.float64", [""])],
     )
-    def mean(self) -> np.float64 | ArrayND[np.float64]:
+    def jac_hf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        shape, rate = self.get_params()
+        return np.stack(
+            (
+                rate * (rate * time) ** (shape - 1) * (1 + shape * np.log(rate * time)),
+                shape**2 * (rate * time) ** (shape - 1),
+            ),
+        )
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def jac_chf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        shape, rate = self.get_params()
+        return np.stack(
+            (
+                np.log(rate * time) * (rate * time) ** shape,
+                shape * time * (rate * time) ** (shape - 1),
+            ),
+        )
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def dhf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        shape, rate = self.get_params()
+        return np.asarray(
+            shape * (shape - 1) * rate**2 * (rate * time) ** (shape - 2),
+        )
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def mean(self) -> np.float64:
         shape, rate = self.get_params()
         return gamma(1 + 1 / shape) / rate
 
@@ -392,15 +433,27 @@ class Weibull(LifetimeDistribution):
         args_docstring=[],
         returns=[docscrape.Parameter("out", "np.float64", [""])],
     )
-    def var(self) -> np.float64 | ArrayND[np.float64]:
+    def var(self) -> np.float64:
         shape, rate = self.get_params()
         return gamma(1 + 2 / shape) / rate**2 - self.mean() ** 2
 
     @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def mrl(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def mrl(self, time: CoercibleFloat64_ND) -> Float64_ND:
+        """
+        The mean residual life function.
+
+        Here, the exact mean residual life is computed.
+        Otherwise, `relife.lifetime_model.mrl` function.
+
+        Returns
+        -------
+        out : np.float64 or np.ndarray
+        """
         shape, rate = self.get_params()
         return (
             gamma(1 / shape)
@@ -412,42 +465,9 @@ class Weibull(LifetimeDistribution):
         )
 
     @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def ichf(
-        self, cumulative_hazard_rate: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        return np.asarray(cumulative_hazard_rate) ** (1 / shape) / rate
-
-    @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def jac_hf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        return np.stack(
-            (
-                rate * (rate * time) ** (shape - 1) * (1 + shape * np.log(rate * time)),
-                shape**2 * (rate * time) ** (shape - 1),
-            ),
-        )
-
-    @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def jac_chf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        return np.stack(
-            (
-                np.log(rate * time) * (rate * time) ** shape,
-                shape * time * (rate * time) ** (shape - 1),
-            ),
-        )
-
-    @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def dhf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        return np.asarray(
-            shape * (shape - 1) * rate**2 * (rate * time) ** (shape - 2),
-        )
+    def __repr__(self) -> str:
+        params = self.get_params()
+        return f"Weibull(shape={params[0].item()!r}, rate={params[1].item()!r})"
 
 
 @final
@@ -484,24 +504,66 @@ class Gompertz(LifetimeDistribution):
         If the model is not fitted, the value is None.
     """
 
-    def __init__(self, shape: ST | None = None, rate: float | None = None):
-        super().__init__(shape=shape, rate=rate)
+    def __init__(self, shape: float | None = None, rate: float | None = None):
+        super().__init__(shape, rate)
 
     @override
     @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def hf(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    def hf(self, time: CoercibleFloat64_ND) -> Float64_ND:
         shape, rate = self.get_params()
         return shape * rate * np.exp(rate * time)
 
     @override
     @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def chf(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    def chf(self, time: CoercibleFloat64_ND) -> Float64_ND:
         shape, rate = self.get_params()
         return shape * np.expm1(rate * time)
+
+    @override
+    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
+    def ichf(self, cumulative_hazard_rate: CoercibleFloat64_ND) -> Float64_ND:
+        shape, rate = self.get_params()
+        return 1 / rate * np.log1p(cumulative_hazard_rate / shape)
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def jac_hf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        shape, rate = self.get_params()
+        return np.stack(
+            (
+                rate * np.exp(rate * time),
+                shape * np.exp(rate * time) * (1 + rate * time),
+            ),
+        )
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def jac_chf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        shape, rate = self.get_params()
+        return np.stack(
+            (
+                np.expm1(rate * time),
+                shape * time * np.exp(rate * time),
+            ),
+        )
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def dhf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        shape, rate = self.get_params()
+        return shape * rate**2 * np.exp(rate * time)
 
     @override
     @document_args(
@@ -519,53 +581,36 @@ class Gompertz(LifetimeDistribution):
         args_docstring=[],
         returns=[docscrape.Parameter("out", "np.float64", [""])],
     )
-    def var(self) -> np.float64 | ArrayND[np.float64]:
-        return super().var()
+    def var(self) -> np.float64:
+        var = super().var()
+        assert isinstance(var, np.float64)  # typeguard
+        return var
 
     @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def mrl(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def mrl(self, time: CoercibleFloat64_ND) -> Float64_ND:
+        """
+        The mean residual life function.
+
+        Here, the exact mean residual life is computed.
+        Otherwise, `relife.lifetime_model.mrl` function.
+
+        Returns
+        -------
+        out : np.float64 or np.ndarray
+        """
         shape, rate = self.get_params()
         z = shape * np.exp(rate * time)
         return np.exp(z) * exp1(z) / rate
 
     @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def ichf(
-        self, cumulative_hazard_rate: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        return 1 / rate * np.log1p(cumulative_hazard_rate / shape)
-
-    @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def jac_hf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        return np.stack(
-            (
-                rate * np.exp(rate * time),
-                shape * np.exp(rate * time) * (1 + rate * time),
-            ),
-        )
-
-    @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def jac_chf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        return np.stack(
-            (
-                np.expm1(rate * time),
-                shape * time * np.exp(rate * time),
-            ),
-        )
-
-    @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def dhf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        return shape * rate**2 * np.exp(rate * time)
+    def __repr__(self) -> str:
+        params = self.get_params()
+        return f"Gompertz(shape={params[0].item()!r}, rate={params[1].item()!r})"
 
 
 @final
@@ -602,45 +647,96 @@ class Gamma(LifetimeDistribution):
         If the model is not fitted, the value is None.
     """
 
-    def __init__(self, shape: ST | None = None, rate: float | None = None):
-        super().__init__(shape=shape, rate=rate)
+    def __init__(self, shape: float | None = None, rate: float | None = None):
+        super().__init__(shape, rate)
 
-    def _uppergamma(
-        self, x: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    def _uppergamma(self, x: CoercibleFloat64_ND) -> Float64_ND:
         shape, _ = self.get_params()
         x = np.asarray(x, dtype=np.float64)
         return gammaincc(shape, x) * gamma(shape)
 
-    def _jac_uppergamma_shape(
-        self, x: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    def _jac_uppergamma_shape(self, x: CoercibleFloat64_ND) -> Float64_ND:
         shape, _ = self.get_params()
 
         def func(
-            s: ST | NumpyST | ArrayND[NumpyST],
-        ) -> np.float64 | ArrayND[np.float64]:
-            return np.log(s) * s ** (shape - 1)
+            s: CoercibleFloat64_ND,
+        ) -> Float64_ND:
+            return np.float64(np.log(s)) * s ** (shape - 1)
 
         return laguerre_quadrature(func, x, deg=100)
 
     @override
     @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def hf(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    def hf(self, time: CoercibleFloat64_ND) -> Float64_ND:
         shape, rate = self.get_params()
         x = np.asarray(rate * time)
         return rate * x ** (shape - 1) * np.exp(-x) / self._uppergamma(x)
 
     @override
     @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def chf(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    def chf(self, time: CoercibleFloat64_ND) -> Float64_ND:
         shape, rate = self.get_params()
         x = np.asarray(rate * time)
         return np.log(gamma(shape)) - np.log(self._uppergamma(x))
+
+    @override
+    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
+    def ichf(self, cumulative_hazard_rate: CoercibleFloat64_ND) -> Float64_ND:
+        shape, rate = self.get_params()
+        return (
+            1
+            / rate
+            * gammainccinv(
+                shape, np.exp(-np.asarray(cumulative_hazard_rate, dtype=np.float64))
+            )
+        )
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def jac_hf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        shape, rate = self.get_params()
+        x = rate * time
+        y = x ** (shape - 1) * np.exp(-x) / self._uppergamma(x) ** 2
+        jac = (
+            y
+            * (
+                (rate * np.log(x) * self._uppergamma(x))
+                - rate * self._jac_uppergamma_shape(x)
+            ),
+            y * ((shape - x) * self._uppergamma(x) + x**shape * np.exp(-x)),
+        )
+        return np.stack(jac)
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def jac_chf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        shape, rate = self.get_params()
+        x = rate * time
+        jac = (
+            digamma(shape) - self._jac_uppergamma_shape(x) / self._uppergamma(x),
+            (x ** (shape - 1) * time * np.exp(-x) / self._uppergamma(x)),
+        )
+        return np.stack(jac)
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def dhf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        shape, rate = self.get_params()
+        return np.asarray(
+            self.hf(time) * ((shape - 1) / time - rate + self.hf(time)),
+        )
 
     @override
     @document_args(
@@ -663,60 +759,9 @@ class Gamma(LifetimeDistribution):
         return shape / (rate**2)
 
     @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def ichf(
-        self, cumulative_hazard_rate: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        return (
-            1
-            / rate
-            * np.asarray(
-                gammainccinv(shape, np.exp(-cumulative_hazard_rate)),
-            )
-        )
-
-    @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def jac_hf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        x = rate * time
-        y = x ** (shape - 1) * np.exp(-x) / self._uppergamma(x) ** 2
-        jac = (
-            y
-            * (
-                (rate * np.log(x) * self._uppergamma(x))
-                - rate * self._jac_uppergamma_shape(x)
-            ),
-            y * ((shape - x) * self._uppergamma(x) + x**shape * np.exp(-x)),
-        )
-        return np.stack(jac)
-
-    @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def jac_chf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        x = rate * time
-        jac = (
-            digamma(shape) - self._jac_uppergamma_shape(x) / self._uppergamma(x),
-            (x ** (shape - 1) * time * np.exp(-x) / self._uppergamma(x)),
-        )
-        return np.stack(jac)
-
-    @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def dhf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        return np.asarray(
-            self.hf(time) * ((shape - 1) / time - rate + self.hf(time)),
-        )
-
-    @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def mrl(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
-        return super().mrl(time)
+    def __repr__(self) -> str:
+        params = self.get_params()
+        return f"Gamma(shape={params[0].item()!r}, rate={params[1].item()!r})"
 
 
 @final
@@ -753,26 +798,76 @@ class LogLogistic(LifetimeDistribution):
         If the model is not fitted, the value is None.
     """
 
-    def __init__(self, shape: ST | None = None, rate: float | None = None):
-        super().__init__(shape=shape, rate=rate)
+    def __init__(self, shape: float | None = None, rate: float | None = None):
+        super().__init__(shape, rate)
 
     @override
     @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def hf(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    def hf(self, time: CoercibleFloat64_ND) -> Float64_ND:
         shape, rate = self.get_params()
         x = rate * np.asarray(time)
         return shape * rate * x ** (shape - 1) / (1 + x**shape)
 
     @override
     @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def chf(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
+    def chf(self, time: CoercibleFloat64_ND) -> Float64_ND:
         shape, rate = self.get_params()
         x = rate * time
         return np.log(1 + x**shape)
+
+    @override
+    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
+    def ichf(self, cumulative_hazard_rate: CoercibleFloat64_ND) -> Float64_ND:
+        shape, rate = self.get_params()
+        return ((np.exp(cumulative_hazard_rate) - 1) ** (1 / shape)) / rate
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def jac_hf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        shape, rate = self.get_params()
+        x = rate * time
+        jac = (
+            (rate * x ** (shape - 1) / (1 + x**shape) ** 2)
+            * (1 + x**shape + shape * np.log(rate * time)),
+            (rate * x ** (shape - 1) / (1 + x**shape) ** 2) * (shape**2 / rate),
+        )
+        return np.stack(jac)
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def jac_chf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        shape, rate = self.get_params()
+        x = rate * time
+        jac = (
+            (x**shape / (1 + x**shape)) * np.log(rate * time),
+            (x**shape / (1 + x**shape)) * (shape / rate),
+        )
+        return np.stack(jac)
+
+    @override
+    @document_args(
+        base_cls=FittableParametricLifetimeModel,
+        args_docstring=[],
+        returns=[docscrape.Parameter("out", "np.float64", [""])],
+    )
+    def dhf(self, time: CoercibleFloat64_ND) -> onp.ArrayND[np.float64]:
+        shape, rate = self.get_params()
+        x = rate * np.asarray(time)
+        return (
+            shape
+            * rate**2
+            * x ** (shape - 2)
+            * (shape - 1 - x**shape)
+            / (1 + x**shape) ** 2
+        )
 
     @override
     @document_args(
@@ -801,316 +896,6 @@ class LogLogistic(LifetimeDistribution):
         return (1 / rate**2) * (2 * b / np.sin(2 * b) - b**2 / (np.sin(b) ** 2))
 
     @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def ichf(
-        self, cumulative_hazard_rate: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        return ((np.exp(cumulative_hazard_rate) - 1) ** (1 / shape)) / rate
-
-    @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def jac_hf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        x = rate * time
-        jac = (
-            (rate * x ** (shape - 1) / (1 + x**shape) ** 2)
-            * (1 + x**shape + shape * np.log(rate * time)),
-            (rate * x ** (shape - 1) / (1 + x**shape) ** 2) * (shape**2 / rate),
-        )
-        return np.stack(jac)
-
-    @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def jac_chf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        x = rate * time
-        jac = (
-            (x**shape / (1 + x**shape)) * np.log(rate * time),
-            (x**shape / (1 + x**shape)) * (shape / rate),
-        )
-        return np.stack(jac)
-
-    @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def dhf(self, time: ST | NumpyST | ArrayND[NumpyST]) -> ArrayND[np.float64]:
-        shape, rate = self.get_params()
-        x = rate * np.asarray(time)
-        return (
-            shape
-            * rate**2
-            * x ** (shape - 2)
-            * (shape - 1 - x**shape)
-            / (1 + x**shape) ** 2
-        )
-
-    @override
-    @document_args(base_cls=LifetimeDistribution, args_docstring=[])
-    def mrl(
-        self, time: ST | NumpyST | ArrayND[NumpyST]
-    ) -> np.float64 | ArrayND[np.float64]:
-        return super().mrl(time)
-
-
-Ts = TypeVarTuple("Ts")
-
-
-@final
-class EquilibriumDistribution(ParametricLifetimeModel[*Ts]):
-    r"""
-    Equilibrium distribution.
-
-    The equilibirum distribution is the distribution that makes the renewal process
-    stationnary.
-
-    Parameters
-    ----------
-    baseline : any parametric lifetime model
-        Lifetime model.
-
-    References
-    ----------
-    .. [1] Ross, S. M. (1996). Stochastic stochastic_process. New York: Wiley.
-    """
-
-    baseline: ParametricLifetimeModel[*Ts]
-
-    def __init__(self, baseline: ParametricLifetimeModel[*Ts]):
-        super().__init__()
-        self.baseline = baseline
-
-    @override
-    def cdf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], *args: *Ts
-    ) -> np.float64 | ArrayND[np.float64]:
-        return legendre_quadrature(
-            lambda x: np.asarray(self.baseline.sf(x, *args), dtype=float), 0, time
-        ) / self.baseline.mean(*args)
-
-    @override
-    def sf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], *args: *Ts
-    ) -> np.float64 | ArrayND[np.float64]:
-        return 1 - self.cdf(time, *args)
-
-    @override
-    def pdf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], *args: *Ts
-    ) -> np.float64 | ArrayND[np.float64]:
-        return self.baseline.sf(time, *args) / self.baseline.mean(*args)
-
-    @override
-    def hf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], *args: *Ts
-    ) -> np.float64 | ArrayND[np.float64]:
-        return 1 / self.baseline.mrl(time, *args)
-
-    @override
-    def chf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], *args: *Ts
-    ) -> np.float64 | ArrayND[np.float64]:
-        return -np.log(self.sf(time, *args))
-
-    @override
-    def isf(
-        self, probability: ST | NumpyST | ArrayND[NumpyST], *args: *Ts
-    ) -> np.float64 | ArrayND[np.float64]:
-        def func(x: NDArray[np.float64]) -> np.float64:
-            return np.sum(self.sf(x, *args) - probability)
-
-        return newton(
-            func,
-            x0=np.asarray(self.baseline.isf(probability, *args)),
-            args=args,
-        )
-
-    @override
-    def ichf(
-        self,
-        cumulative_hazard_rate: ST | NumpyST | ArrayND[NumpyST],
-        *args: *Ts,
-    ) -> np.float64 | ArrayND[np.float64]:
-        return self.isf(np.exp(-cumulative_hazard_rate), *args)
-
-
-AnyUnsignedInt: TypeAlias = int | np.uint | NDArray[np.uint]
-
-
-@final
-class MinimumDistribution(FittableParametricLifetimeModel[AnyUnsignedInt]):
-    r"""
-    Series structure of n identical and independent components.
-
-    The hazard function of the system is given by:
-
-    .. math::
-
-        h(t) = n \cdot  h_0(t)
-
-    where :math:`h_0` is the baseline hazard function of the components.
-
-    Parameters
-    ----------
-    baseline : lifetime distribution or regression
-        Lifetime model.
-
-    Examples
-    --------
-
-    Computing the survival (or reliability) function for 3 structures of 3,6 and
-    9 identical and idependent components:
-
-    .. code-block::
-
-        model = MinimumDistribution(Weibull(2, 0.05))
-        t = np.arange(0, 10, 0.1)
-        n = np.array([3, 6, 9]).reshape(-1, 1)
-        model.sf(t, n)
-    """
-
-    baseline: LifetimeDistribution
-
-    def __init__(self, baseline: LifetimeDistribution):
-        super().__init__()
-        self.baseline = baseline
-
-    @override
-    def sf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], n: AnyUnsignedInt
-    ) -> np.float64 | ArrayND[np.float64]:
-        return super().sf(time, n)
-
-    @override
-    def pdf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], n: AnyUnsignedInt
-    ) -> np.float64 | ArrayND[np.float64]:
-        return super().pdf(time, n)
-
-    @override
-    def hf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], n: AnyUnsignedInt
-    ) -> np.float64 | ArrayND[np.float64]:
-        return n * self.baseline.hf(time)
-
-    @override
-    def chf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], n: AnyUnsignedInt
-    ) -> np.float64 | ArrayND[np.float64]:
-        return n * self.baseline.chf(time)
-
-    @override
-    def ichf(
-        self,
-        cumulative_hazard_rate: ST | NumpyST | ArrayND[NumpyST],
-        n: AnyUnsignedInt,
-    ) -> np.float64 | ArrayND[np.float64]:
-        return self.baseline.ichf(cumulative_hazard_rate / n)
-
-    @override
-    def dhf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], n: AnyUnsignedInt
-    ) -> ArrayND[np.float64]:
-        return n * self.baseline.dhf(time)
-
-    @override
-    def jac_chf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], n: AnyUnsignedInt
-    ) -> ArrayND[np.float64]:
-        return n * self.baseline.jac_chf(time)
-
-    @override
-    def jac_hf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], n: AnyUnsignedInt
-    ) -> ArrayND[np.float64]:
-        return n * self.baseline.jac_chf(time)
-
-    @override
-    def jac_sf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], n: AnyUnsignedInt
-    ) -> ArrayND[np.float64]:
-        jac_chf, sf = (
-            self.jac_chf(time, n),
-            self.sf(time, n),
-        )
-        return -jac_chf * sf
-
-    @override
-    def jac_cdf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], n: AnyUnsignedInt
-    ) -> ArrayND[np.float64]:
-        return super().jac_cdf(time, n)
-
-    @override
-    def jac_pdf(
-        self, time: ST | NumpyST | ArrayND[NumpyST], n: AnyUnsignedInt
-    ) -> ArrayND[np.float64]:
-        jac_hf, hf = self.jac_hf(time, n), self.hf(time, n)
-        jac_sf, sf = self.jac_sf(time, n), self.sf(time, n)
-        return jac_hf * sf + jac_sf * hf
-
-    @override
-    def ls_integrate(
-        self,
-        func: Callable[
-            [ST | NumpyST | ArrayND[NumpyST]],
-            np.float64 | ArrayND[np.float64],
-        ],
-        a: ST | NumpyST | ArrayND[NumpyST],
-        b: ST | NumpyST | ArrayND[NumpyST],
-        n: AnyUnsignedInt,
-        *,
-        deg: int = 10,
-    ) -> np.float64 | ArrayND[np.float64]:
-        return super().ls_integrate(func, a, b, n, deg=deg)
-
-    @override
-    def init_likelihood(
-        self,
-        time: Array1D[np.float64],
-        args: Array1D[Any]
-        | Array2D[Any]
-        | tuple[Array1D[Any] | Array2D[Any], ...]
-        | None = None,
-        event: Array1D[np.bool_] | None = None,
-        entry: Array1D[np.float64] | None = None,
-        **kwargs: Any,
-    ) -> LifetimeLikelihood[Self]:
-        if not isinstance(args, np.ndarray):
-            raise ValueError("args is expected to be covar only.")
-        args = to_column_2d_if_1d(args)
-        lifetime_data = LifetimeData(time, args, event, entry)
-        x0 = kwargs.get(
-            "x0", init_distrib_params_from_lifetimes(self.baseline, lifetime_data)
-        )
-        config = OptimizerConfig(x0)
-        config.scipy_minimize_options["bounds"] = kwargs.get(
-            "bounds", get_distrib_params_bounds(self.baseline)
-        )
-        config.scipy_minimize_options["method"] = kwargs.get("method", "L-BFGS-B")
-        config.covariance_method = kwargs.get(
-            "covariance_method", "2point" if isinstance(self.baseline, Gamma) else "cs"
-        )
-        optimizer = LifetimeLikelihood(self, lifetime_data, config)
-        return optimizer
-
-    @override
-    def fit(
-        self,
-        time: Array1D[np.float64],
-        args: Array1D[Any]
-        | Array2D[Any]
-        | tuple[Array1D[Any] | Array2D[Any], ...]
-        | None = None,
-        event: Array1D[np.bool_] | None = None,
-        entry: Array1D[np.float64] | None = None,
-        **kwargs: Any,
-    ) -> Self:
-        if not isinstance(args, np.ndarray):
-            raise ValueError("args is expected to contain n values only.")
-        return super().fit(
-            time,
-            args=args,
-            event=event,
-            entry=entry,
-            **kwargs,
-        )
+    def __repr__(self) -> str:
+        params = self.get_params()
+        return f"LogLogistic(shape={params[0].item()!r}, rate={params[1].item()!r})"

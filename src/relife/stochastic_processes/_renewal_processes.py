@@ -1,35 +1,28 @@
-import functools
-import inspect
+"""Renewal and renewal reward processes."""
+
 from collections.abc import Callable
-from typing import Any, Literal, ParamSpec, TypeAlias, TypedDict, TypeVar
+from typing import ParamSpec, TypeAlias, TypeVar, overload
 
 import numpy as np
-from optype.numpy import Array, Array1D, Array2D, ArrayND, is_array_1d
+import optype.numpy as onp
 
+from relife._rewards import (
+    ExponentialDiscounting,
+    compute_rewards,
+    discounting_annuity_factor,
+    discounting_factor,
+)
 from relife.base import ParametricModel
-from relife.lifetime_models._base import (
-    ParametricLifetimeModel,
+from relife.lifetime_models import ParametricLifetimeModel
+from relife.typing import (
+    CoercibleFloat64_1D,
+    CoercibleFloat64_ND,
+    Float64_1D,
+    Float64_ND,
+    Timeline,
 )
-from relife.lifetime_models._conditional_models import (
-    get_conditional_lifetime_model,
-)
-from relife.rewards import ExponentialDiscounting, Reward
-from relife.stochastic_processes._sample import StochasticSampleMapping
-from relife.utils import to_column_2d_if_1d
 
-ST: TypeAlias = int | float
-NumpyST: TypeAlias = np.floating | np.uint
-
-
-__all__ = [
-    "RenewalProcess",
-    "RenewalRewardProcess",
-]
-
-FT: TypeAlias = Callable[
-    [ST | NumpyST | ArrayND[NumpyST]],
-    np.float64 | ArrayND[np.float64],
-]
+FT: TypeAlias = Callable[[CoercibleFloat64_ND], Float64_ND]
 
 
 class RenewalEquationSolver:
@@ -58,97 +51,83 @@ class RenewalEquationSolver:
 
     def solve(
         self, tf: float, nb_steps: int, discounting_rate: float = 0.0
-    ) -> tuple[Array1D[np.float64], Array1D[np.float64] | Array2D[np.float64]]:
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]:
+        """
+        Solve the renewal equation on a finite timeline.
+
+        Parameters
+        ----------
+        tf : float
+            Final time.
+        nb_steps : int
+            Number of steps used to discretize the time.
+        discounting_rate : float, default=0.0
+            Exponential discounting rate.
+
+        Returns
+        -------
+        out : tuple of np.ndarray
+            Timeline and corresponding values.
+        """
 
         discounting = ExponentialDiscounting(discounting_rate)
-        timeline = np.atleast_2d(np.linspace(0, tf, nb_steps, dtype=np.float64))
-        tm = 0.5 * (timeline[:, 1:] + timeline[:, :-1])  # (1, nb_steps - 1)
-        f = np.atleast_2d(self.lifetime_model.cdf(timeline))  # (m, nb_steps)
-        fm = np.atleast_2d(self.lifetime_model.cdf(tm))  # (m, nb_steps - 1)
-        y = np.atleast_2d(self.func(timeline))  # (1, nb_steps)
-        d = np.asarray(discounting.factor(timeline))  # (m, nb_steps)
-        z = np.empty(y.shape)
-        u = d * np.insert(f[:, 1:] - fm, 0, 1, axis=-1)
-        v = d[:, :-1] * np.insert(np.diff(fm), 0, 1, axis=-1)
-        q0 = 1 / (1 - d[:, 0] * fm[:, 0])
-        z[:, 0] = y[:, 0]
-        z[:, 1] = q0 * (y[:, 1] + z[:, 0] * u[:, 1])
-        for n in range(2, f.shape[-1]):
-            z[:, n] = q0 * (
-                y[:, n]
-                + z[:, 0] * u[:, n]
-                + np.sum(z[:, 1:n][:, ::-1] * v[:, 1:n], axis=-1)
-            )
+        timeline = np.linspace(0, tf, nb_steps, dtype=np.float64)  # (s,)
+        tm = 0.5 * (timeline[1:] + timeline[:-1])  # (s-1,)
+        f = np.asarray(
+            self.lifetime_model.cdf(timeline.reshape(-1, 1))
+        )  # (s,) or (s, m)
+        fm = np.asarray(
+            self.lifetime_model.cdf(tm.reshape(-1, 1))
+        )  # (s-1,) or (s-1, m)
+        y = np.asarray(self.func(timeline.reshape(-1, 1)))  # (s,) or (s, m)
+        d = np.asarray(discounting.factor(timeline))  # (s,)
+        z = np.empty(y.shape)  # (s,) or (s, m)
+        u = d.reshape(-1, 1) * np.insert(f[1:] - fm, 0, 1, axis=0)
+        v = d[:-1].reshape(-1, 1) * np.insert(np.diff(fm, axis=0), 0, 1, axis=0)
+        q0 = 1 / (1 - d[0] * fm[0])
+        z[0] = y[0]
+        z[1] = q0 * (y[1] + z[0] * u[1])
+        for n in range(2, len(f)):
+            z[n] = q0 * (y[n] + z[0] * u[n] + np.sum(z[1:n][::-1] * v[1:n], axis=0))
 
         if self.first_lifetime_model is not None and self.func1 is not None:
-            f1 = np.atleast_2d(self.first_lifetime_model.cdf(timeline))  # (m, nb_steps)
-            f1m = np.atleast_2d(self.first_lifetime_model.cdf(tm))  # (m, nb_steps - 1)
-            y1 = np.atleast_2d(self.func1(timeline))  # (m, nb_steps - 1)
+            f1 = np.asarray(self.first_lifetime_model.cdf(timeline.reshape(-1, 1)))
+            f1m = np.asarray(self.first_lifetime_model.cdf(tm.reshape(-1, 1)))
+            y1 = np.asarray(self.func1(timeline.reshape(-1, 1)))
             z1 = np.empty(y1.shape)
-            u1 = d * np.insert(f1[:, 1:] - f1m, 0, 1, axis=-1)
-            v1 = d[:, :-1] * np.insert(np.diff(f1m), 0, 1, axis=-1)
-            z1[:, 0] = y1[:, 0]
-            z1[:, 1] = y1[:, 1] + z[:, 0] * u1[:, 1] + z[:, 1] * d[:, 0] * f1m[:, 0]
-            for n in range(2, f1.shape[-1]):
-                z1[:, n] = (
-                    y1[:, n]
-                    + z[:, 0] * u1[:, n]
-                    + z[:, n] * d[:, 0] * f1m[:, 0]
-                    + np.sum(z[:, 1:n][:, ::-1] * v1[:, 1:n], axis=-1)
+            u1 = d.reshape(-1, 1) * np.insert(f1[1:] - f1m, 0, 1, axis=0)
+            v1 = d[:-1].reshape(-1, 1) * np.insert(np.diff(f1m, axis=0), 0, 1, axis=0)
+            z1[0] = y1[0]
+            z1[1] = y1[1] + z[0] * u1[1] + z[1] * d[0] * f1m[0]
+            for n in range(2, len(f1)):
+                z1[n] = (
+                    y1[n]
+                    + z[0] * u1[n]
+                    + z[n] * d[0] * f1m[0]
+                    + np.sum(z[1:n][::-1] * v1[1:n], axis=0)
                 )
-            return np.squeeze(timeline), np.squeeze(z1)
-        return np.squeeze(timeline), np.squeeze(z)
+            assert onp.is_array_2d(z1)
+            return timeline, np.squeeze(z1)
+        assert onp.is_array_2d(z)
+        return timeline, np.squeeze(z)
 
 
 R = TypeVar("R")
 P = ParamSpec("P")
 
 
-def reshape_a0_ar(func: Callable[P, R]) -> Callable[P, R]:
-    @functools.wraps(func)
-    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-        sig = inspect.signature(func)
-        ba = sig.bind(*args, **kwargs)
-        ba.apply_defaults()
-        a0 = ba.arguments.get("a0")
-        ar = ba.arguments.get("ar")
-        if a0 is not None and isinstance(a0, np.ndarray) and a0.ndim != 2:
-            assert is_array_1d(a0)  # typeguard
-            ba.arguments["a0"] = to_column_2d_if_1d(a0)
-        if ar is not None and isinstance(ar, np.ndarray) and ar.ndim != 2:
-            assert is_array_1d(ar)  # typeguard
-            ba.arguments["ar"] = to_column_2d_if_1d(ar)
-        return func(*ba.args, **ba.kwargs)
-
-    return wrapper
-
-
-class LifetimeFitArgs(TypedDict):
-    time: Array1D[np.float64] | Array[tuple[int, Literal[2]], np.float64]
-    event: Array1D[np.bool_]
-    entry: Array1D[np.float64]
-    args: Array1D[Any] | Array2D[Any] | tuple[Array1D[Any] | Array2D[Any], ...]
-
-
 class RenewalProcess(ParametricModel):
-    """Renewal process.
+    """
+    Renewal process.
 
     Parameters
     ----------
-    lifetime_model : any lifetime distribution or frozen lifetime model
-        A lifetime model representing the durations between events.
-
-    first_lifetime_model : any lifetime distribution or frozen lifetime model, optional
-        A lifetime model for the first renewal (delayed renewal process). It is lifetime_model by default.
-
-    Attributes
-    ----------
-    lifetime_model : any lifetime distribution or frozen lifetime model
-        A lifetime model representing the durations between events.
-
-    first_lifetime_model : any lifetime distribution or frozen lifetime model, optional
-        A lifetime model for the first renewal (delayed renewal process). It is lifetime_model by default
-    """  # noqa: E501
+    lifetime_model : ParametricLifetimeModel
+        Lifetime model representing durations between events.
+    first_lifetime_model : ParametricLifetimeModel, optional
+        Lifetime model for the first renewal in a delayed renewal process.
+        Defaults to ``lifetime_model``.
+    """
 
     lifetime_model: ParametricLifetimeModel[()]
     first_lifetime_model: ParametricLifetimeModel[()]
@@ -168,14 +147,14 @@ class RenewalProcess(ParametricModel):
             self._different_first_lifetime_model = True
             self.first_lifetime_model = first_lifetime_model
 
-    @reshape_a0_ar
     def renewal_function(
         self,
         tf: float,
         nb_steps: int,
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-    ) -> tuple[Array1D[np.float64], Array1D[np.float64] | Array2D[np.float64]]:
+        *,
+        a0: CoercibleFloat64_1D | None = None,
+        ar: CoercibleFloat64_1D | None = None,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]:
         r"""
         The renewal function.
 
@@ -201,16 +180,16 @@ class RenewalProcess(ParametricModel):
         tf : float
             The final time.
         nb_steps : int
-            The number of steps used to discretized the time.
-        a0 : float or np.ndarray, optional
+            The number of steps used to discretize the time.
+        a0 : float or 1d array, optional
             Initial ages of the assets.
-        ar : float or np.ndarray, optional
+        ar : float or 1d array, optional
             Preventive ages of replacements.
 
         Returns
         -------
-        out : tuple of two ndarrays
-            A timeline and the corresponding values.
+        out : tuple of np.ndarray
+            Timeline and corresponding values.
 
         References
         ----------
@@ -220,19 +199,19 @@ class RenewalProcess(ParametricModel):
         """  # noqa: E501
 
         renewal_equation_solver = RenewalEquationSolver(
-            get_conditional_lifetime_model(self.lifetime_model, ar=ar),
-            get_conditional_lifetime_model(self.first_lifetime_model, ar=ar, a0=a0).cdf,
+            self.lifetime_model.apply_condition(ar=ar),
+            self.first_lifetime_model.apply_condition(ar=ar, a0=a0).cdf,
         )
         return renewal_equation_solver.solve(tf, nb_steps)
 
-    @reshape_a0_ar
     def renewal_density(
         self,
         tf: float,
         nb_steps: int,
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-    ) -> tuple[Array1D[np.float64], Array1D[np.float64] | Array2D[np.float64]]:
+        *,
+        a0: CoercibleFloat64_1D | None = None,
+        ar: CoercibleFloat64_1D | None = None,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]:
         r"""The renewal density.
 
         It is the derivative :math:`\omega` of the renewal function :math:`m`.
@@ -257,16 +236,16 @@ class RenewalProcess(ParametricModel):
         tf : float
             The final time.
         nb_steps : int
-            The number of steps used to discretized the time.
-        a0 : float or np.ndarray, optional
+            The number of steps used to discretize the time.
+        a0 : float or 1d array, optional
             Initial ages of the assets.
-        ar : float or np.ndarray, optional
+        ar : float or 1d array, optional
             Preventive ages of replacements.
 
         Returns
         -------
-        tuple of two ndarrays
-            A tuple containing the timeline and the computed values.
+        tuple of np.ndarray
+            Timeline and corresponding values.
 
         References
         ----------
@@ -275,19 +254,19 @@ class RenewalProcess(ParametricModel):
             Sons.
         """  # noqa: E501
         renewal_equation_solver = RenewalEquationSolver(
-            get_conditional_lifetime_model(self.lifetime_model, ar=ar),
-            get_conditional_lifetime_model(self.first_lifetime_model, ar=ar, a0=a0).pdf,
+            self.lifetime_model.apply_condition(ar=ar),
+            self.first_lifetime_model.apply_condition(ar=ar, a0=a0).pdf,
         )
         return renewal_equation_solver.solve(tf, nb_steps)
 
-    @reshape_a0_ar
     def expected_number_of_events(
         self,
         tf: float,
         nb_steps: int,
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-    ) -> tuple[Array1D[np.float64], Array1D[np.float64] | Array2D[np.float64]]:
+        *,
+        a0: CoercibleFloat64_1D | None = None,
+        ar: CoercibleFloat64_1D | None = None,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]:
         r"""
         The expected number of observed events.
 
@@ -330,60 +309,58 @@ class RenewalProcess(ParametricModel):
         tf : float
             The final time.
         nb_steps : int
-            The number of steps used to discretized the time.
-        a0 : float or np.ndarray, optional
+            The number of steps used to discretize the time.
+        a0 : float or 1d array, optional
             Initial ages of the assets.
-        ar : float or np.ndarray, optional
+        ar : float or 1d array, optional
             Preventive ages of replacements.
 
         Returns
         -------
-        out : tuple of two ndarrays
-            A timeline and the corresponding values.
+        out : tuple of np.ndarray
+            Timeline and corresponding values.
 
         Notes
         -----
         Preventive replacements are not considered as events. Only renewals are. Thus,
-        there are not counted.
+        they are not counted.
         """  # noqa: E501
 
-        def F(t: ST | NumpyST | ArrayND[NumpyST]) -> np.float64 | ArrayND[np.float64]:
-            _ar = ar if ar is not None else np.inf
+        def F(t: CoercibleFloat64_ND) -> Float64_ND:
+            _ar = np.float64(ar) if ar is not None else np.inf
             return self.lifetime_model.cdf(np.minimum(t, _ar))
 
         def F1(
-            t: ST | NumpyST | ArrayND[NumpyST],
-        ) -> np.float64 | ArrayND[np.float64]:
-            left_truncated_model = get_conditional_lifetime_model(
-                self.first_lifetime_model, a0=a0
-            )
-            _ar = ar if ar is not None else np.inf
-            _a0 = a0 if a0 is not None else 0.0
+            t: CoercibleFloat64_ND,
+        ) -> Float64_ND:
+            left_truncated_model = self.first_lifetime_model.apply_condition(a0=a0)
+            _ar = np.float64(ar) if ar is not None else np.inf
+            _a0 = np.float64(a0) if a0 is not None else 0.0
             return left_truncated_model.cdf(np.minimum(t, _ar - _a0))
 
         if self._different_first_lifetime_model or a0 is not None:
             renewal_equation_solver = RenewalEquationSolver(
-                get_conditional_lifetime_model(self.lifetime_model, ar=ar),
+                self.lifetime_model.apply_condition(ar=ar),
                 F,
-                get_conditional_lifetime_model(self.first_lifetime_model, a0=a0, ar=ar),
+                self.first_lifetime_model.apply_condition(a0=a0, ar=ar),
                 F1,
             )
         else:
             renewal_equation_solver = RenewalEquationSolver(
-                get_conditional_lifetime_model(self.lifetime_model, ar=ar),
+                self.lifetime_model.apply_condition(ar=ar),
                 F,
             )
 
         return renewal_equation_solver.solve(tf, nb_steps)
 
-    @reshape_a0_ar
     def expected_number_of_preventive_renewals(
         self,
         tf: float,
         nb_steps: int,
-        ar: ST | NumpyST | Array1D[NumpyST],
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-    ) -> tuple[Array1D[np.float64], Array1D[np.float64] | Array2D[np.float64]]:
+        *,
+        ar: CoercibleFloat64_1D,
+        a0: CoercibleFloat64_1D | None = None,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]:
         r"""
         The expected number of preventive renewals.
 
@@ -423,226 +400,96 @@ class RenewalProcess(ParametricModel):
         tf : float
             The final time.
         nb_steps : int
-            The number of steps used to discretized the time.
-        ar : float or np.ndarray
+            The number of steps used to discretize the time.
+        ar : float or 1d array
             Preventive ages of replacements.
-        a0 : float or np.ndarray, optional
+        a0 : float or 1d array, optional
             Initial ages of the assets.
 
         Returns
         -------
-        out : tuple of two ndarrays
-            A timeline and the corresponding values.
+        out : tuple of np.ndarray
+            Timeline and corresponding values.
 
         """  # noqa: E501
 
-        def F(t: ST | NumpyST | ArrayND[NumpyST]) -> np.float64 | ArrayND[np.float64]:
+        def F(t: CoercibleFloat64_ND) -> Float64_ND:
             return (1 - self.lifetime_model.cdf(ar)) * (t > ar)
 
-        def F1(t: ST | NumpyST | ArrayND[NumpyST]) -> np.float64 | ArrayND[np.float64]:
-            _a0 = a0 if a0 is not None else 0.0
+        def F1(t: CoercibleFloat64_ND) -> Float64_ND:
+            _a0 = np.float64(a0) if a0 is not None else 0.0
             first_ar = ar - _a0
             return (
-                1
-                - get_conditional_lifetime_model(self.first_lifetime_model, a0=a0).cdf(
-                    first_ar
-                )
+                1 - self.first_lifetime_model.apply_condition(a0=a0).cdf(first_ar)
             ) * (t > first_ar)
 
         if self._different_first_lifetime_model or a0 is not None:
             renewal_equation_solver = RenewalEquationSolver(
-                get_conditional_lifetime_model(self.lifetime_model, ar=ar),
+                self.lifetime_model.apply_condition(ar=ar),
                 F,
-                get_conditional_lifetime_model(self.first_lifetime_model, a0=a0, ar=ar),
+                self.first_lifetime_model.apply_condition(a0=a0, ar=ar),
                 F1,
             )
         else:
             renewal_equation_solver = RenewalEquationSolver(
-                get_conditional_lifetime_model(self.lifetime_model, ar=ar),
+                self.lifetime_model.apply_condition(ar=ar),
                 F,
             )
 
         return renewal_equation_solver.solve(tf, nb_steps)
 
-    @reshape_a0_ar
-    def sample(
-        self,
-        nb_samples: int,
-        time_window: tuple[float, float],
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-        seed: int
-        | np.random.Generator
-        | np.random.BitGenerator
-        | np.random.RandomState
-        | None = None,
-    ) -> StochasticSampleMapping:
-        """Renewal data sampling.
-
-        This function will sample data and encapsulate them in an object.
-
-        Parameters
-        ----------
-        nb_samples : int
-            The size of the desired sample
-        time_window : tuple of two floats
-            Time window in which data are sampled
-        a0 : float or np.ndarray, optional
-            Initial ages of the assets.
-        ar : float or np.ndarray, optional
-            Preventive ages of replacements.
-        seed : int, optional
-            Random seed, by default None.
-
-        """
-
-        from ._sample import RenewalProcessIterable
-
-        iterable = RenewalProcessIterable(
-            self, nb_samples, time_window, a0=a0, ar=ar, seed=seed
-        )
-        struct_array = np.concatenate(tuple(iterable))
-        struct_array = np.sort(
-            struct_array, order=("asset_id", "sample_id", "timeline")
-        )
-        return StochasticSampleMapping.from_struct_array(
-            struct_array, iterable.nb_assets, nb_samples
-        )
-
-    @reshape_a0_ar
-    def generate_failure_data(
-        self,
-        nb_samples: int,
-        time_window: tuple[float, float],
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-        seed: int
-        | np.random.Generator
-        | np.random.BitGenerator
-        | np.random.RandomState
-        | None = None,
-    ) -> LifetimeFitArgs:
-        """Generate lifetime data
-
-        This function will generate lifetime data that can be used to fit a lifetime model.
-
-        Parameters
-        ----------
-        nb_samples : int
-            The size of the desired sample
-        time_window : tuple of two floats
-            Time window in which data are sampled
-        a0 : float or np.ndarray, optional
-            Initial ages of the assets.
-        ar : float or np.ndarray, optional
-            Preventive ages of replacements.
-        seed : int, optional
-            Random seed, by default None.
-
-        Returns
-        -------
-        A dict of time, event, entry and args (covariates)
-
-        """  # noqa: E501
-
-        from ._sample import RenewalProcessIterable
-
-        if self.first_lifetime_model:
-            raise ValueError(
-                "Calling sample_lifetime_data with first_lifetime_model is ambiguous."  # noqa: E501
-            )
-        iterable = RenewalProcessIterable(
-            self, nb_samples, time_window, a0=a0, ar=ar, seed=seed
-        )
-        struct_array = np.concatenate(tuple(iterable))
-        struct_array = np.sort(
-            struct_array, order=("sample_id", "asset_id", "timeline")
-        )
-
-        args_2d = tuple(
-            np.atleast_2d(arg) for arg in getattr(self.lifetime_model, "args", ())
-        )
-        tuple_args_arr = tuple(
-            np.take(np.asarray(arg), struct_array["asset_id"], axis=0)
-            for arg in args_2d
-        )
-
-        return LifetimeFitArgs(
-            time=struct_array["time"].copy(),
-            event=struct_array["event"].copy(),
-            entry=struct_array["entry"].copy(),
-            args=tuple_args_arr,
-        )
-
 
 class RenewalRewardProcess(RenewalProcess):
-    """Renewal reward process.
+    """
+    Renewal reward process.
 
     Parameters
     ----------
-    lifetime_model : any lifetime distribution or frozen lifetime model
-        A lifetime model representing the durations between events.
-    reward : Reward
-        A reward object that answers costs or conditional costs given lifetime values
-    discounting_rate : float
-        The discounting rate value used in the exponential discounting function
-    first_lifetime_model : any lifetime distribution or frozen lifetime model, optional
-        A lifetime model for the first renewal (delayed renewal process). It is lifetime_model by default
-    reward : Reward
-        A reward object for the first renewal
+    lifetime_model : ParametricLifetimeModel
+        Lifetime model representing durations between events.
+    first_lifetime_model : ParametricLifetimeModel, optional
+        Lifetime model for the first renewal in a delayed renewal process.
+        Defaults to ``lifetime_model``.
+    """
 
-    Attributes
-    ----------
-    lifetime_model : any lifetime distribution or frozen lifetime model
-        A lifetime model representing the durations between events.
-    first_lifetime_model : any lifetime distribution or frozen lifetime model, optional
-        A lifetime model for the first renewal (delayed renewal process). It is lifetime_model by default
-    reward : Reward
-        A reward object that answers costs or conditional costs given lifetime values
-    first_reward : Reward
-        A reward object for the first renewal. If it is not given at the initialization, it is a copy of reward.
-    discounting_rate
-    nb_params
-    params
-    params_names
-    """  # noqa: E501
-
-    reward: Reward
-    first_reward: Reward
-    discounting: ExponentialDiscounting
-
-    def __init__(
-        self,
-        lifetime_model: ParametricLifetimeModel[()],
-        reward: Reward,
-        discounting_rate: float = 0.0,
-        first_lifetime_model: ParametricLifetimeModel[()] | None = None,
-        first_reward: Reward | None = None,
-    ) -> None:
-        super().__init__(lifetime_model, first_lifetime_model)
-        self.reward = reward
-        self.first_reward = first_reward if first_reward is not None else self.reward
-        self.discounting = ExponentialDiscounting(discounting_rate)
-
-    @property
-    def discounting_rate(self) -> float:
-        """
-        The discounting rate value
-        """
-        return self.discounting.rate
-
-    @discounting_rate.setter
-    def discounting_rate(self, value: float) -> None:
-        self.discounting.rate = value
-
-    @reshape_a0_ar
+    @overload
     def expected_total_reward(
         self,
         tf: float,
         nb_steps: int,
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-    ) -> tuple[Array1D[np.float64], Array1D[np.float64] | Array2D[np.float64]]:
+        *,
+        cf: CoercibleFloat64_1D,
+        cf1: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]: ...
+    @overload
+    def expected_total_reward(
+        self,
+        tf: float,
+        nb_steps: int,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D,
+        ar: CoercibleFloat64_1D,
+        cf1: CoercibleFloat64_1D | None = None,
+        cp1: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]: ...
+    def expected_total_reward(
+        self,
+        tf: float,
+        nb_steps: int,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D | None = None,
+        ar: CoercibleFloat64_1D | None = None,
+        cf1: CoercibleFloat64_1D | None = None,
+        cp1: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]:
         r"""The expected total reward.
 
         The renewal equation solved to compute the expected reward is:
@@ -682,67 +529,123 @@ class RenewalRewardProcess(RenewalProcess):
         tf : float
             The final time.
         nb_steps : int
-            The number of steps used to discretized the time.
-        a0 : float or np.ndarray, optional
+            The number of steps used to discretize the time.
+        cf : float or 1d array
+            The cost of failure.
+        cp : float or 1d array, optional
+            The cost of preventive replacement. Must be set with ar.
+        ar : float or 1d array, optional
+            Preventive ages of replacements. Must be set with cp.
+        a0 : float or 1d array, optional
             Initial ages of the assets.
-        ar : float or np.ndarray, optional
-            Preventive ages of replacements.
+        cf1 : float or 1d array, optional
+            The cost of first failure. If not set, defaults to cf.
+        cp1 : float or 1d array, optional
+            The cost of the first preventive replacement. Must be set with ar.
+            If not set, defaults to cp.
+        discounting_rate : float, default is 0.
+            The discounting rate to apply for reward computations.
 
         Returns
         -------
-        tuple of two ndarrays
-            A tuple containing the timeline and the computed values.
+        tuple of np.ndarray
+            Timeline and corresponding values.
 
         """
 
-        def F(t: ST | NumpyST | ArrayND[NumpyST]) -> np.float64 | ArrayND[np.float64]:
-            return get_conditional_lifetime_model(
-                self.lifetime_model, ar=ar
-            ).ls_integrate(
+        if (cp is None) != (ar is None):
+            raise TypeError("cp and ar must be set together.")
+        if cp1 is not None and cp is None:
+            raise TypeError("cp1 can only be set when cp and ar are set.")
+
+        def F(t: CoercibleFloat64_ND) -> Float64_ND:
+            return self.lifetime_model.apply_condition(ar=ar).ls_integrate(
                 lambda x: (
-                    self.reward.conditional_expectation(x) * self.discounting.factor(x)
+                    compute_rewards(x, cf=cf, a0=a0, cp=cp, ar=ar)
+                    * discounting_factor(x, discounting_rate)
                 ),
                 np.zeros_like(t),
                 np.asarray(t),
+                func_args=tuple(arg for arg in (cf, a0, cp, ar) if arg is not None),
                 deg=15,
             )
 
-        def F1(t: ST | NumpyST | ArrayND[NumpyST]) -> np.float64 | ArrayND[np.float64]:
-            return get_conditional_lifetime_model(
-                self.first_lifetime_model, a0=a0, ar=ar
-            ).ls_integrate(
+        def F1(t: CoercibleFloat64_ND) -> Float64_ND:
+            return self.first_lifetime_model.apply_condition(a0=a0, ar=ar).ls_integrate(
                 lambda x: (
-                    self.first_reward.conditional_expectation(x, a0=a0)
-                    * self.discounting.factor(x)
+                    compute_rewards(
+                        x,
+                        cf=cf1 if cf1 is not None else cf,
+                        a0=a0,
+                        cp=cp1 if cp1 is not None else cp,
+                        ar=ar,
+                    )
+                    * discounting_factor(x, discounting_rate)
                 ),
                 np.zeros_like(t),
                 np.asarray(t),
+                func_args=tuple(
+                    arg
+                    for arg in (
+                        cf1 if cf1 is not None else cf,
+                        a0,
+                        cp1 if cp1 is not None else cp,
+                        ar,
+                    )
+                    if arg is not None
+                ),
                 deg=15,
             )
 
         if self._different_first_lifetime_model or a0 is not None:
             renewal_equation_solver = RenewalEquationSolver(
-                get_conditional_lifetime_model(self.lifetime_model, ar=ar),
+                self.lifetime_model.apply_condition(ar=ar),
                 F,
-                get_conditional_lifetime_model(self.first_lifetime_model, a0=a0, ar=ar),
+                self.first_lifetime_model.apply_condition(a0=a0, ar=ar),
                 F1,
             )
         else:
             renewal_equation_solver = RenewalEquationSolver(
-                get_conditional_lifetime_model(self.lifetime_model, ar=ar),
+                self.lifetime_model.apply_condition(ar=ar),
                 F,
             )
 
         return renewal_equation_solver.solve(
-            tf, nb_steps, discounting_rate=self.discounting_rate
+            tf, nb_steps, discounting_rate=discounting_rate
         )
 
-    @reshape_a0_ar
+    @overload
     def asymptotic_expected_total_reward(
         self,
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-    ) -> np.float64 | Array1D[np.float64]:
+        *,
+        cf: CoercibleFloat64_1D,
+        cf1: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D: ...
+    @overload
+    def asymptotic_expected_total_reward(
+        self,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D,
+        ar: CoercibleFloat64_1D,
+        cf1: CoercibleFloat64_1D | None = None,
+        cp1: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D: ...
+    def asymptotic_expected_total_reward(
+        self,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D | None = None,
+        ar: CoercibleFloat64_1D | None = None,
+        cf1: CoercibleFloat64_1D | None = None,
+        cp1: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D:
         r"""Asymptotic expected total reward.
 
         The asymptotic expected total reward is:
@@ -771,31 +674,49 @@ class RenewalRewardProcess(RenewalProcess):
 
         Parameters
         ----------
-        a0 : float or np.ndarray, optional
+        cf : float or 1d array
+            The cost of failure.
+        cp : float or 1d array, optional
+            The cost of preventive replacement. Must be set with ar.
+        ar : float or 1d array, optional
+            Preventive ages of replacements. Must be set with cp.
+        a0 : float or 1d array, optional
             Initial ages of the assets.
-        ar : float or np.ndarray, optional
-            Preventive ages of replacements.
+        cf1 : float or 1d array, optional
+            The cost of first failure. If not set, defaults to cf.
+        cp1 : float or 1d array, optional
+            The cost of the first preventive replacement. Must be set with ar.
+            If not set, defaults to cp.
+        discounting_rate : float, default is 0.
+            The discounting rate to apply for reward computations.
 
         Returns
         -------
         ndarray
-            The assymptotic expected total reward of the process.
+            The asymptotic expected total reward of the process.
         """  # noqa: E501
 
-        lf = get_conditional_lifetime_model(self.lifetime_model, ar=ar).ls_integrate(
-            lambda x: self.discounting.factor(x),
-            np.float64(0.0),
-            np.asarray(np.inf),
+        if (cp is None) != (ar is None):
+            raise TypeError("cp and ar must be set together.")
+        if cp1 is not None and cp is None:
+            raise TypeError("cp1 can only be set when cp and ar are set.")
+
+        lf = self.lifetime_model.apply_condition(ar=ar).ls_integrate(
+            lambda x: discounting_factor(x, discounting_rate),
+            0,
+            np.inf,
             deg=100,
         )  # () or (m, 1)
-        if self.discounting_rate == 0.0:
+        if discounting_rate == 0.0:
             return np.full_like(np.squeeze(lf), np.inf)
-        ly = get_conditional_lifetime_model(self.lifetime_model, ar=ar).ls_integrate(
+        ly = self.lifetime_model.apply_condition(ar=ar).ls_integrate(
             lambda x: (
-                self.discounting.factor(x) * self.reward.conditional_expectation(x)
+                compute_rewards(x, cf=cf, a0=a0, cp=cp, ar=ar)
+                * discounting_factor(x, discounting_rate)
             ),
-            0.0,
+            0,
             np.inf,
+            func_args=tuple(arg for arg in (cf, a0, cp, ar) if arg is not None),
             deg=100,
         )  # () or (m, 1)
         z = np.squeeze(ly / (1 - lf))  # () or (m,)
@@ -804,36 +725,81 @@ class RenewalRewardProcess(RenewalProcess):
             # Apply delay for the first renewal with a0
             # If no a0 are given, will result in the same solution
             lf1 = np.squeeze(
-                get_conditional_lifetime_model(
-                    self.first_lifetime_model, a0=a0, ar=ar
-                ).ls_integrate(
-                    lambda x: self.discounting.factor(x), 0.0, np.inf, deg=100
+                self.first_lifetime_model.apply_condition(a0=a0, ar=ar).ls_integrate(
+                    lambda x: discounting_factor(x, discounting_rate),
+                    0.0,
+                    np.inf,
+                    deg=100,
                 )
             )  # () or (m,)
             ly1 = np.squeeze(
-                get_conditional_lifetime_model(
-                    self.first_lifetime_model, a0=a0, ar=ar
-                ).ls_integrate(
+                self.first_lifetime_model.apply_condition(a0=a0, ar=ar).ls_integrate(
                     lambda x: (
-                        self.discounting.factor(x)
-                        * self.first_reward.conditional_expectation(x, a0)
+                        compute_rewards(
+                            x,
+                            cf=cf1 if cf1 is not None else cf,
+                            a0=a0,
+                            cp=cp1 if cp1 is not None else cp,
+                            ar=ar,
+                        )
+                        * discounting_factor(x, discounting_rate)
                     ),
                     0.0,
                     np.inf,
+                    func_args=tuple(
+                        arg
+                        for arg in (
+                            cf1 if cf1 is not None else cf,
+                            a0,
+                            cp1 if cp1 is not None else cp,
+                            ar,
+                        )
+                        if arg is not None
+                    ),
                     deg=100,
                 )
             )  # () or (m,)
             z = ly1 + z * lf1
         return z
 
-    @reshape_a0_ar
+    @overload
     def expected_equivalent_annual_worth(
         self,
         tf: float,
         nb_steps: int,
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-    ) -> tuple[Array1D[np.float64], Array1D[np.float64] | Array2D[np.float64]]:
+        *,
+        cf: CoercibleFloat64_1D,
+        cf1: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]: ...
+    @overload
+    def expected_equivalent_annual_worth(
+        self,
+        tf: float,
+        nb_steps: int,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D,
+        ar: CoercibleFloat64_1D,
+        cf1: CoercibleFloat64_1D | None = None,
+        cp1: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]: ...
+    def expected_equivalent_annual_worth(
+        self,
+        tf: float,
+        nb_steps: int,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D | None = None,
+        ar: CoercibleFloat64_1D | None = None,
+        cf1: CoercibleFloat64_1D | None = None,
+        cp1: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> tuple[Timeline, onp.Array1D[np.float64] | onp.Array2D[np.float64]]:
         """Expected equivalent annual worth.
 
         Gives the equivalent annual worth of the expected total reward of the
@@ -847,67 +813,153 @@ class RenewalRewardProcess(RenewalProcess):
         tf : float
             The final time.
         nb_steps : int
-            The number of steps used to discretized the time.
-        a0 : float or np.ndarray, optional
+            The number of steps used to discretize the time.
+        cf : float or 1d array
+            The cost of failure.
+        cp : float or 1d array, optional
+            The cost of preventive replacement. Must be set with ar.
+        ar : float or 1d array, optional
+            Preventive ages of replacements. Must be set with cp.
+        a0 : float or 1d array, optional
             Initial ages of the assets.
-        ar : float or np.ndarray, optional
-            Preventive ages of replacements.
+        cf1 : float or 1d array, optional
+            The cost of first failure. If not set, defaults to cf.
+        cp1 : float or 1d array, optional
+            The cost of the first preventive replacement. Must be set with ar.
+            If not set, defaults to cp.
+        discounting_rate : float, default is 0.
+            The discounting rate to apply for reward computations.
 
         Returns
         -------
-        tuple of two ndarrays
-            A tuple containing the timeline and the computed values.
+        tuple of np.ndarray
+            Timeline and corresponding values.
         """
-        timeline, z = self.expected_total_reward(tf, nb_steps, a0=a0, ar=ar)
-        af = self.discounting.annuity_factor(timeline)  # (nb_steps,)
-        if z.ndim == 2 and af.shape != z.shape:  # (m, nb_steps)
-            af = np.tile(af, (z.shape[0], 1))  # (m, nb_steps)
-        q = z / (af + 1e-6)  # # (nb_steps,) or (m, nb_steps) avoid zero division
-        q0 = self.reward.conditional_expectation(
-            np.asarray(0.0)
-        ) * get_conditional_lifetime_model(self.lifetime_model, a0=a0).pdf(0.0)
-        # q0 : () or (m, 1)
-        q0 = np.broadcast_to(q0, af.shape)  # (), (nb_steps,) or (m, nb_steps)
-        eeac = np.where(af == 0, q0, q)  # (nb_steps,) or (m, nb_steps)
-        return np.squeeze(timeline), np.squeeze(eeac)
+        if (cp is None) != (ar is None):
+            raise TypeError("cp and ar must be set together.")
+        if cp1 is not None and cp is None:
+            raise TypeError("cp1 can only be set when cp and ar are set.")
 
-    @reshape_a0_ar
+        if cp is not None and ar is not None:
+            timeline, z = self.expected_total_reward(
+                tf,
+                nb_steps,
+                cf=cf,
+                a0=a0,
+                cp=cp,
+                ar=ar,
+                cf1=cf1,
+                cp1=cp1,
+                discounting_rate=discounting_rate,
+            )
+        else:
+            timeline, z = self.expected_total_reward(
+                tf,
+                nb_steps,
+                cf=cf,
+                a0=a0,
+                cf1=cf1,
+                discounting_rate=discounting_rate,
+            )
+        af = discounting_annuity_factor(timeline, discounting_rate)  # (nb_steps,)
+        if z.ndim == 2:
+            af = af.reshape(-1, 1)  # (nb_steps, 1)
+        q0 = compute_rewards(
+            0.0, cf=cf, a0=a0, cp=cp, ar=ar
+        ) * self.lifetime_model.apply_condition(a0=a0).pdf(0.0)
+        # () or (m,)
+        q = z / (af + 1e-6)  # # (nb_steps,) or (nb_steps, m) avoid zero division
+        eeac = np.where(af == 0, q0, q)  # (nb_steps,) or (m, nb_steps)
+        return timeline, eeac
+
+    @overload
     def asymptotic_expected_equivalent_annual_worth(
         self,
-        a0: ST | NumpyST | Array1D[NumpyST] | None = None,
-        ar: ST | NumpyST | Array1D[NumpyST] | None = None,
-    ) -> np.float64 | Array1D[np.float64]:
+        *,
+        cf: CoercibleFloat64_1D,
+        cf1: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D: ...
+    @overload
+    def asymptotic_expected_equivalent_annual_worth(
+        self,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D,
+        ar: CoercibleFloat64_1D,
+        cf1: CoercibleFloat64_1D | None = None,
+        cp1: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D: ...
+    def asymptotic_expected_equivalent_annual_worth(
+        self,
+        *,
+        cf: CoercibleFloat64_1D,
+        cp: CoercibleFloat64_1D | None = None,
+        ar: CoercibleFloat64_1D | None = None,
+        cf1: CoercibleFloat64_1D | None = None,
+        cp1: CoercibleFloat64_1D | None = None,
+        a0: CoercibleFloat64_1D | None = None,
+        discounting_rate: float = 0.0,
+    ) -> Float64_1D:
         """Asymptotic expected equivalent annual worth.
 
         Parameters
         ----------
-        a0 : float or np.ndarray, optional
+        cf : float or 1d array
+            The cost of failure.
+        cp : float or 1d array, optional
+            The cost of preventive replacement. Must be set with ar.
+        ar : float or 1d array, optional
+            Preventive ages of replacements. Must be set with cp.
+        a0 : float or 1d array, optional
             Initial ages of the assets.
-        ar : float or np.ndarray, optional
-            Preventive ages of replacements.
+        cf1 : float or 1d array, optional
+            The cost of first failure. If not set, defaults to cf.
+        cp1 : float or 1d array, optional
+            The cost of the first preventive replacement. Must be set with ar.
+            If not set, defaults to cp.
+        discounting_rate : float, default is 0.
+            The discounting rate to apply for reward computations.
 
         Returns
         -------
         ndarray
-            The assymptotic expected equivalent annual worth.
+            The asymptotic expected equivalent annual worth.
         """
-        if self.discounting_rate == 0.0:
-            lifetime_model_applied = get_conditional_lifetime_model(
-                self.lifetime_model, ar=ar
-            )
-            return np.squeeze(
-                np.asarray(
-                    lifetime_model_applied.ls_integrate(
-                        lambda x: self.reward.conditional_expectation(x),
-                        np.float64(0.0),
-                        np.asarray(np.inf),
-                        deg=100,
-                    ),
-                    dtype=float,
-                )
-                / lifetime_model_applied.mean()
-            )
+        if (cp is None) != (ar is None):
+            raise TypeError("cp and ar must be set together.")
+        if cp1 is not None and cp is None:
+            raise TypeError("cp1 can only be set when cp and ar are set.")
 
-        res = self.discounting_rate * self.asymptotic_expected_total_reward(a0, ar)
-        assert is_array_1d(res) or isinstance(res, np.float64)  # typeguard
+        if discounting_rate == 0.0:
+            ls = self.lifetime_model.apply_condition(ar=ar).ls_integrate(
+                lambda x: compute_rewards(x, cf=cf, a0=a0, cp=cp, ar=ar),
+                0.0,
+                np.inf,
+                func_args=tuple(arg for arg in (cf, a0, cp, ar) if arg is not None),
+                deg=100,
+            )
+            mean = self.lifetime_model.apply_condition(ar=ar).mean()
+            return ls / mean
+        if cp is not None and ar is not None:
+            res = discounting_rate * self.asymptotic_expected_total_reward(
+                cf=cf,
+                a0=a0,
+                cp=cp,
+                ar=ar,
+                cf1=cf1,
+                cp1=cp1,
+                discounting_rate=discounting_rate,
+            )
+        else:
+            res = discounting_rate * self.asymptotic_expected_total_reward(
+                cf=cf,
+                a0=a0,
+                cf1=cf1,
+                discounting_rate=discounting_rate,
+            )
+        assert onp.is_array_1d(res) or isinstance(res, np.float64)  # typeguard
         return res

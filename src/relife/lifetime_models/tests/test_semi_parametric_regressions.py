@@ -1,11 +1,11 @@
-# pyright: basic
 import numpy as np
+from optype.numpy import ArrayND
 from pytest import approx
 
 from relife.lifetime_models import SemiParametricProportionalHazard
 
 
-def test_cox_params_eq(insulator_string_data):
+def test_cox_params_eq(insulator_string_data: ArrayND[np.void]):
     # From manual experiment and comparison to lifelines results
     insulator_data_cox_params = np.array([5.08787802, -2.98553117, 4.51758019])
     timeline_head = np.array(
@@ -57,20 +57,17 @@ def test_cox_params_eq(insulator_string_data):
         dtype=np.float64,
     )
 
-    re_model = SemiParametricProportionalHazard()
-    covar = np.column_stack(
-        (
-            insulator_string_data["pHCl"],
-            insulator_string_data["pH2SO4"],
-            insulator_string_data["HNO3"],
-        )
+    covar = (
+        insulator_string_data["pHCl"],
+        insulator_string_data["pH2SO4"],
+        insulator_string_data["HNO3"],
     )
-    re_model.fit(
+    re_model = SemiParametricProportionalHazard(
         time=insulator_string_data["time"],
         covar=covar,
         event=insulator_string_data["event"],
     )
-    sf_relife = re_model.sf(covar=covar[:2, :], se=False)
+    sf_relife = re_model.sf(covar[0][:2], covar[1][:2], covar[2][:2], se=False)
 
     assert re_model.get_params() == approx(insulator_data_cox_params, rel=1e-3)
     assert sf_relife[0][:19] == approx(timeline_head, rel=1e-3)

@@ -1,45 +1,46 @@
+"""Kijima virtual age processes."""
+
 from __future__ import annotations
 
-from typing import Any, Generic, Self, TypeAlias, TypeVar, TypeVarTuple
+from typing import Generic
 
 import numpy as np
-from optype.numpy import Array1D, ArrayND
 
-from relife.base import FittingResults, ParametricModel
-from relife.lifetime_models._base import FittableParametricLifetimeModel
-from relife.stochastic_processes._sample import StochasticSampleMapping
-
-__all__ = ["Kijima1Process", "Kijima2Process"]
-
-Ts = TypeVarTuple("Ts")
-ST: TypeAlias = int | float
-NumpyST: TypeAlias = np.floating | np.uint
-M = TypeVar(
-    "M",
-    bound=FittableParametricLifetimeModel[*tuple[ST | NumpyST | ArrayND[NumpyST], ...]],
-)
+from relife.base import ParametricModel
+from relife.lifetime_models._base import ParametricLifetimeModel
+from relife.typing import CovarTs
 
 
-class Kijima1Process(ParametricModel, Generic[M]):
+class Kijima1Process(ParametricModel, Generic[*CovarTs]):
     """
-    Kijima I Process.
+    Kijima I virtual age process.
+
+    Parameters
+    ----------
+    lifetime_model : ParametricLifetimeModel
+        Lifetime model used to generate interarrival times.
+    q : float, default=np.nan
+        Restoration factor.
     """
 
-    lifetime_model: M
-    fitting_results: FittingResults | None
+    lifetime_model: ParametricLifetimeModel[*CovarTs]
 
-    def __init__(self, lifetime_model: M, q: float | None = None):
-        super().__init__(q=q)
+    def __init__(
+        self,
+        lifetime_model: ParametricLifetimeModel[*CovarTs],
+        q: float = np.nan,
+    ):
+        super().__init__(q)
         self.lifetime_model = lifetime_model
-        self.fitting_results = None
 
     @property
     def q(self) -> np.float64:
+        """Restoration factor."""
         return self.get_params()[0]
 
-    def freeze(self, *args: ST | NumpyST | ArrayND[NumpyST]) -> FrozenKijima1Process[M]:
+    def freeze(self, *args: *CovarTs) -> FrozenKijima1Process[*CovarTs]:
         """
-        Freeze any arguments required by the process into the object data.
+        Return a process with additional arguments stored.
 
         Parameters
         ----------
@@ -48,149 +49,57 @@ class Kijima1Process(ParametricModel, Generic[M]):
 
         Returns
         -------
-        FrozenParametricModel
+        FrozenKijima1Process
         """
         return FrozenKijima1Process(self, *args)
 
-    def sample(
-        self,
-        nb_samples: int,
-        time_window: tuple[float, float],
-        *args: ST | NumpyST | ArrayND[NumpyST],
-        a0: int | float | Array1D[np.float64] | None = None,
-        ar: int | float | Array1D[np.float64] | None = None,
-        seed: int
-        | np.random.Generator
-        | np.random.BitGenerator
-        | np.random.RandomState
-        | None = None,
-    ) -> StochasticSampleMapping:
-        """Renewal data sampling.
 
-        Samples data and encapsulates them in a StochasticSampleMapping object.
+class FrozenKijima1Process(Kijima1Process[()], Generic[*CovarTs]):
+    """Kijima I process with additional arguments stored."""
 
-        Parameters
-        ----------
-        nb_samples : int
-            The number of samples
-        time_window : tuple of two floats
-            Time window in which data are sampled
-        *args : float or np.ndarray
-            Additional arguments needed by the model.
-        seed : int, optional
-            Random seed, by default None.
-
-        """
-        frozen_kijima = self.freeze(*args)
-        return frozen_kijima.sample(
-            nb_samples=nb_samples, time_window=time_window, a0=a0, ar=ar, seed=seed
-        )
-
-    def generate_failure_data(self) -> dict[str, Any]:
-        r"""
-        .. warning:: Not implemented yet
-        """
-        raise NotImplementedError(
-            "Failure data methods for stochastic processes will be introduced in a future release"  # noqa: E501
-        )
-
-    def fit(self) -> Self:
-        r"""
-        .. warning:: Not implemented yet
-        """
-        raise NotImplementedError(
-            "Fitting methods for Kijima processes will be introduced in a future release"  # noqa: E501
-        )
-
-
-class FrozenKijima1Process(ParametricModel, Generic[M]):
-    """
-    Kijima I process.
-    """
-
-    unfrozen: Kijima1Process[M]
-    args: tuple[ST | NumpyST | ArrayND[NumpyST], ...]
+    unfrozen: Kijima1Process[*CovarTs]
+    args: tuple[*CovarTs]
 
     def __init__(
         self,
-        kijima_process: Kijima1Process[M],
-        *args: ST | NumpyST | ArrayND[NumpyST],
+        kijima_process: Kijima1Process[*CovarTs],
+        *args: *CovarTs,
     ) -> None:
-        super().__init__()
+        super().__init__(kijima_process.lifetime_model.freeze(*args), kijima_process.q)
         self.unfrozen = kijima_process
         self.args = args
 
-    def sample(
+
+class Kijima2Process(ParametricModel, Generic[*CovarTs]):
+    """
+    Kijima II virtual age process.
+
+    Parameters
+    ----------
+    lifetime_model : ParametricLifetimeModel
+        Lifetime model used to generate interarrival times.
+    q : float, default=np.nan
+        Restoration factor.
+    """
+
+    lifetime_model: ParametricLifetimeModel[*CovarTs]
+
+    def __init__(
         self,
-        nb_samples: int,
-        time_window: tuple[float, float],
-        a0: int | float | Array1D[np.float64] | None = None,
-        ar: int | float | Array1D[np.float64] | None = None,
-        seed: int
-        | np.random.Generator
-        | np.random.BitGenerator
-        | np.random.RandomState
-        | None = None,
-    ) -> StochasticSampleMapping:
-        """Renewal data sampling.
-
-        Samples data and encapsulates them in a StochasticSampleMapping object.
-
-        Parameters
-        ----------
-        nb_samples : int
-            The number of samples.
-        tf : float
-            Time at the end of the observation.
-        t0 : float, default 0
-            Time at the beginning of the observation.
-        seed : int, optional
-            Random seed, by default None.
-
-        """
-
-        from ._sample import Kijima1ProcessIterable
-
-        iterable = Kijima1ProcessIterable(
-            self, nb_samples, time_window=time_window, a0=a0, ar=ar, seed=seed
-        )
-        struct_array = np.concatenate(tuple(iterable))
-        struct_array = np.sort(
-            struct_array, order=("asset_id", "sample_id", "timeline")
-        )
-        return StochasticSampleMapping.from_struct_array(
-            struct_array, iterable.nb_assets, nb_samples
-        )
-
-    def generate_failure_data(self) -> dict[str, Any]:
-        r"""
-        .. warning:: Not implemented yet
-        """
-        raise NotImplementedError(
-            "Failure data methods for stochastic processes will be introduced in a future release"  # noqa: E501
-        )
-
-
-class Kijima2Process(ParametricModel, Generic[M]):
-    """
-    Kijima II Process.
-    """
-
-    lifetime_model: M
-    fitting_results: FittingResults | None
-
-    def __init__(self, lifetime_model: M, q: float | None = None):
-        super().__init__(q=q)
+        lifetime_model: ParametricLifetimeModel[*CovarTs],
+        q: float = np.nan,
+    ):
+        super().__init__(q)
         self.lifetime_model = lifetime_model
-        self.fitting_results = None
 
     @property
     def q(self) -> np.float64:
+        """Restoration factor."""
         return self.get_params()[0]
 
-    def freeze(self, *args: ST | NumpyST | ArrayND[NumpyST]) -> FrozenKijima2Process[M]:
+    def freeze(self, *args: *CovarTs) -> FrozenKijima2Process[*CovarTs]:
         """
-        Freeze any arguments required by the process into the object data.
+        Return a process with additional arguments stored.
 
         Parameters
         ----------
@@ -199,124 +108,22 @@ class Kijima2Process(ParametricModel, Generic[M]):
 
         Returns
         -------
-        FrozenParametricModel
+        FrozenKijima2Process
         """
         return FrozenKijima2Process(self, *args)
 
-    def sample(
-        self,
-        nb_samples: int,
-        time_window: tuple[float, float],
-        *args: ST | NumpyST | ArrayND[NumpyST],
-        a0: int | float | Array1D[np.float64] | None = None,
-        ar: int | float | Array1D[np.float64] | None = None,
-        seed: int
-        | np.random.Generator
-        | np.random.BitGenerator
-        | np.random.RandomState
-        | None = None,
-    ) -> StochasticSampleMapping:
-        """Renewal data sampling.
 
-        Samples data and encapsulates them in a StochasticSampleMapping object.
+class FrozenKijima2Process(Kijima2Process[()], Generic[*CovarTs]):
+    """Kijima II process with additional arguments stored."""
 
-        Parameters
-        ----------
-        nb_samples : int
-            The number of samples
-        time_window : tuple of two floats
-            Time window in which data are sampled
-        *args : float or np.ndarray
-            Additional arguments needed by the model.
-        seed : int, optional
-            Random seed, by default None.
-
-        """
-        frozen_kijima = self.freeze(*args)
-        return frozen_kijima.sample(
-            nb_samples=nb_samples, time_window=time_window, a0=a0, ar=ar, seed=seed
-        )
-
-    def generate_failure_data(self) -> dict[str, Any]:
-        r"""
-        .. warning:: Not implemented yet
-        """
-        raise NotImplementedError(
-            "Failure data methods for stochastic processes will be introduced in a future release"  # noqa: E501
-        )
-
-    def fit(self) -> Self:
-        r"""
-        .. warning:: Not implemented yet
-        """
-        raise NotImplementedError(
-            "Fitting methods for Kijima processes will be introduced in a future release"  # noqa: E501
-        )
-
-
-class FrozenKijima2Process(ParametricModel, Generic[M]):
-    """
-    Kijima II process.
-    """
-
-    unfrozen: Kijima2Process[M]
-    args: tuple[ST | NumpyST | ArrayND[NumpyST], ...]
+    unfrozen: Kijima2Process[*CovarTs]
+    args: tuple[*CovarTs]
 
     def __init__(
         self,
-        kijima_process: Kijima2Process[M],
-        *args: ST | NumpyST | ArrayND[NumpyST],
+        kijima_process: Kijima2Process[*CovarTs],
+        *args: *CovarTs,
     ) -> None:
-        super().__init__()
+        super().__init__(kijima_process.lifetime_model.freeze(*args), kijima_process.q)
         self.unfrozen = kijima_process
         self.args = args
-
-    def sample(
-        self,
-        nb_samples: int,
-        time_window: tuple[float, float],
-        a0: int | float | Array1D[np.float64] | None = None,
-        ar: int | float | Array1D[np.float64] | None = None,
-        seed: int
-        | np.random.Generator
-        | np.random.BitGenerator
-        | np.random.RandomState
-        | None = None,
-    ) -> StochasticSampleMapping:
-        """Renewal data sampling.
-
-        Samples data and encapsulates them in a StochasticSampleMapping object.
-
-        Parameters
-        ----------
-        nb_samples : int
-            The number of samples.
-        tf : float
-            Time at the end of the observation.
-        t0 : float, default 0
-            Time at the beginning of the observation.
-        seed : int, optional
-            Random seed, by default None.
-
-        """
-
-        from ._sample import Kijima2ProcessIterable
-
-        iterable = Kijima2ProcessIterable(
-            self, nb_samples, time_window=time_window, a0=a0, ar=ar, seed=seed
-        )
-        struct_array = np.concatenate(tuple(iterable))
-        struct_array = np.sort(
-            struct_array, order=("asset_id", "sample_id", "timeline")
-        )
-        return StochasticSampleMapping.from_struct_array(
-            struct_array, iterable.nb_assets, nb_samples
-        )
-
-    def generate_failure_data(self) -> dict[str, Any]:
-        r"""
-        .. warning:: Not implemented yet
-        """
-        raise NotImplementedError(
-            "Failure data methods for stochastic processes will be introduced in a future release"  # noqa: E501
-        )

@@ -7,4 +7,5 @@ testpaths = [
     "src/relife/lifetime_models/tests",
     "src/relife/stochastic_processes/tests",
     "src/relife/policies/tests",
+    "src/relife/sampling/tests",
 ]

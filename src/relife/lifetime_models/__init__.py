@@ -41,13 +41,6 @@ Nonparametric models
     ECDF
     NelsonAalen
 
-Conditional models
-------------------
-
-    AgeReplacementModel
-    LeftTruncatedModel
-
-
 Likelihoods
 -----------
 
@@ -55,50 +48,52 @@ Likelihoods
     CoxPartialLifetimeLikelihood
     BreslowPartialLifetimeLikelihood
     EfronPartialLifetimeLikelihood
-
 """
 
-from ._base import LifetimeLikelihood
-from ._conditional_models import AgeReplacementModel, LeftTruncatedModel
+from ._base import (
+    FittableParametricLifetimeModel,
+    ParametricLifetimeModel,
+)
 from ._distributions import (
-    EquilibriumDistribution,
     Exponential,
     Gamma,
     Gompertz,
+    LifetimeDistribution,
     LogLogistic,
-    MinimumDistribution,
     Weibull,
 )
+from ._equilibrium_distribution import EquilibriumDistribution
+from ._minimum_distribution import MinimumDistribution
 from ._non_parametric_models import ECDF, KaplanMeier, NelsonAalen
 from ._parametric_regressions import (
+    LinearCovarEffect,
     ParametricAcceleratedFailureTime,
+    ParametricLifetimeRegression,
     ParametricProportionalHazard,
 )
-from ._semi_parametric_regressions import (
-    BreslowPartialLifetimeLikelihood,
-    CoxPartialLifetimeLikelihood,
-    EfronPartialLifetimeLikelihood,
-    SemiParametricProportionalHazard,
-)
+from ._semi_parametric_regressions import SemiParametricProportionalHazard
 
-__all__ = [
-    "LifetimeLikelihood",
-    "Exponential",
-    "Weibull",
-    "Gompertz",
-    "Gamma",
-    "LogLogistic",
-    "MinimumDistribution",
-    "EquilibriumDistribution",
-    "ParametricProportionalHazard",
-    "ParametricAcceleratedFailureTime",
-    "SemiParametricProportionalHazard",
-    "KaplanMeier",
-    "ECDF",
-    "NelsonAalen",
-    "AgeReplacementModel",
-    "LeftTruncatedModel",
-    "CoxPartialLifetimeLikelihood",
-    "EfronPartialLifetimeLikelihood",
-    "BreslowPartialLifetimeLikelihood",
+__all__: list[str] = []
+__all__ += [
+    "FittableParametricLifetimeModel",
+    "ParametricLifetimeModel",
 ]
+__all__ += [
+    "EquilibriumDistribution",
+    "Exponential",
+    "Gamma",
+    "Gompertz",
+    "LifetimeDistribution",
+    "LogLogistic",
+    "Weibull",
+]
+__all__ += ["EquilibriumDistribution"]
+__all__ += ["MinimumDistribution"]
+__all__ += [
+    "LinearCovarEffect",
+    "ParametricAcceleratedFailureTime",
+    "ParametricLifetimeRegression",
+    "ParametricProportionalHazard",
+]
+__all__ += ["ECDF", "KaplanMeier", "NelsonAalen"]
+__all__ += ["SemiParametricProportionalHazard"]

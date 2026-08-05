@@ -6,9 +6,7 @@ from . import (
     lifetime_models,
     policies,
     quadratures,
-    rewards,
     stochastic_processes,
-    utils,
 )
 
 with suppress(PackageNotFoundError):
@@ -20,6 +18,4 @@ __all__ = [
     "policies",
     "stochastic_processes",
     "quadratures",
-    "rewards",
-    "utils",
 ]

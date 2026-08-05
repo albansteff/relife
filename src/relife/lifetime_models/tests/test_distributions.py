@@ -1,174 +1,251 @@
-# pyright: basic
-
 import numpy as np
+import optype.numpy as onp
 import pytest
-from pytest import approx
+from numpy.testing import assert_allclose
+
+from relife.lifetime_models import LifetimeDistribution
+from relife.typing import CoercibleFloat64_ND, Float64_ND
+
+from .utils import generate_shapes, shape_id
 
 
-def rvs_expected_shape(size):
-    if size != 1:
-        return (size,)
-    return ()
+@pytest.mark.parametrize(
+    "method",
+    ["sf", "hf", "chf", "cdf", "pdf", "dhf", "isf", "ichf", "ppf"],
+)
+@pytest.mark.parametrize(
+    "shape",
+    generate_shapes(max_ndim=2, nb_args=1),
+    ids=shape_id,
+)
+def test_prob_func_broadcasting(
+    distribution: LifetimeDistribution,
+    method: str,
+    shape: tuple[int] | tuple[int, int],
+):
+    assert getattr(distribution, method)(np.ones(shape) * 0.5).shape == shape
 
 
-def test_rvs(distribution, rvs_size):
-    assert distribution.rvs(
-        rvs_size,
-    ).shape == rvs_expected_shape(
-        size=rvs_size,
+@pytest.mark.parametrize(
+    "method",
+    ["sf", "hf", "chf", "cdf", "pdf", "isf", "ichf", "ppf"],
+)
+@pytest.mark.parametrize(
+    "a0_shape, shape",
+    generate_shapes(max_ndim=2, nb_args=2),
+    ids=shape_id,
+)
+def test_a0_prob_func_broadcasting(
+    distribution: LifetimeDistribution,
+    method: str,
+    a0_shape: tuple[int] | tuple[int, int],
+    shape: tuple[int] | tuple[int, int],
+):
+    assert getattr(distribution.apply_condition(a0=np.ones(a0_shape) * 0.3), method)(
+        np.ones(shape) * 0.5
+    ).shape == np.broadcast_shapes(a0_shape, shape)
+
+
+@pytest.mark.parametrize(
+    "method",
+    ["sf", "hf", "chf", "cdf", "pdf", "isf", "ichf", "ppf"],
+)
+@pytest.mark.parametrize(
+    "ar_shape, shape",
+    generate_shapes(max_ndim=2, nb_args=2),
+    ids=shape_id,
+)
+def test_ar_prob_func_broadcasting(
+    distribution: LifetimeDistribution,
+    method: str,
+    ar_shape: tuple[int] | tuple[int, int],
+    shape: tuple[int] | tuple[int, int],
+):
+    assert getattr(distribution.apply_condition(a0=np.ones(ar_shape) * 0.3), method)(
+        np.ones(shape) * 0.5
+    ).shape == np.broadcast_shapes(ar_shape, shape)
+
+
+@pytest.mark.parametrize(
+    "method",
+    ["jac_sf", "jac_chf", "jac_cdf", "jac_pdf"],
+)
+@pytest.mark.parametrize(
+    "time_shape",
+    generate_shapes(max_ndim=2, nb_args=1),
+    ids=shape_id,
+)
+def test_jac_func_broadcasting(
+    distribution: LifetimeDistribution,
+    method: str,
+    time_shape: tuple[int] | tuple[int, int],
+):
+    assert (
+        getattr(distribution, method)(np.ones(time_shape)).shape
+        == (distribution.get_params().size,) + time_shape
     )
 
 
-def test_sf(distribution, time):
-    assert distribution.sf(time).shape == time.shape
-    assert distribution.sf(np.full(time.shape, distribution.median())) == approx(
-        np.full(time.shape, 0.5), rel=1e-3
-    )
+@pytest.mark.parametrize(
+    "size",
+    generate_shapes(max_ndim=2, nb_args=1),
+    ids=shape_id,
+)
+def test_rvs_broadcasting(
+    distribution: LifetimeDistribution,
+    size: tuple[int] | tuple[int, int],
+):
+    assert distribution.rvs(size, seed=1).shape == size
 
 
-def test_hf(distribution, time):
-    assert distribution.hf(time).shape == time.shape
-
-
-def test_chf(distribution, time):
-    assert distribution.chf(time).shape == time.shape
-
-
-def test_cdf(distribution, time):
-    assert distribution.cdf(time).shape == time.shape
-
-
-def test_pdf(distribution, time):
-    assert distribution.pdf(time).shape == time.shape
-
-
-def test_ppf(distribution, probability):
-    assert distribution.ppf(probability).shape == probability.shape
-
-
-def test_ichf(distribution, probability):
-    assert distribution.ichf(probability).shape == probability.shape
-
-
-def test_isf(distribution, probability):
-    assert distribution.isf(probability).shape == probability.shape
-    assert distribution.isf(np.full(probability.shape, 0.5)) == approx(
-        np.full(probability.shape, distribution.median())
-    )
-
-
-def test_moment(distribution):
-    assert distribution.moment(1).shape == ()
-    assert distribution.moment(2).shape == ()
-
-
-def test_mean(distribution):
+def test_mean_broadcasting(distribution: LifetimeDistribution):
     assert distribution.mean().shape == ()
 
 
-def test_var(distribution):
+def test_var_broadcasting(distribution: LifetimeDistribution):
     assert distribution.var().shape == ()
 
 
-def test_median(distribution):
-    assert distribution.median().shape == ()
-
-
-def test_dhf(distribution, time):
-    assert distribution.dhf(time).shape == time.shape
-
-
-def test_jac_sf(distribution, time):
-    nb_params = distribution.get_params().size
-    assert distribution.jac_sf(time).shape == (nb_params,) + time.shape
-
-
-def test_jac_hf(distribution, time):
-    nb_params = distribution.get_params().size
-    assert distribution.jac_hf(time).shape == (nb_params,) + time.shape
-
-
-def test_jac_chf(distribution, time):
-    nb_params = distribution.get_params().size
-    assert distribution.jac_chf(time).shape == (nb_params,) + time.shape
-
-
-def test_jac_cdf(distribution, time):
-    nb_params = distribution.get_params().size
-    assert distribution.jac_cdf(time).shape == (nb_params,) + time.shape
-
-
-def test_jac_pdf(distribution, time):
-    nb_params = distribution.get_params().size
-    assert distribution.jac_pdf(time).shape == (nb_params,) + time.shape
-
-
-def test_ls_integrate(distribution, integration_bound_a, integration_bound_b):
-    # integral_a^b dF(x)
-    expected_shape = np.broadcast_shapes(
-        integration_bound_a.shape, integration_bound_b.shape
+def test_sf(distribution: LifetimeDistribution):
+    assert_allclose(
+        distribution.sf(np.full((3, 5), distribution.median())),
+        np.full((3, 5), 0.5),
+        rtol=1e-3,
     )
-    integration = distribution.ls_integrate(
-        np.ones_like, integration_bound_a, integration_bound_b, deg=100
-    )
-    assert integration.shape == expected_shape
-    assert integration == approx(
-        distribution.cdf(integration_bound_b) - distribution.cdf(integration_bound_a)
-    )
-    # integral_0^inf x*dF(x)
-    integration = distribution.ls_integrate(
-        lambda x: x,
-        np.zeros_like(integration_bound_a),
-        np.full_like(integration_bound_b, np.inf),
-        deg=100,
-    )
-    assert integration == approx(np.full(expected_shape, distribution.mean()), rel=1e-3)
 
 
-def test_fit(distribution, power_transformer_data):
+def test_isf(distribution: LifetimeDistribution):
+    assert_allclose(
+        distribution.isf(np.full((3, 5), 0.5)),
+        np.full((3, 5), distribution.median()),
+    )
+
+
+def test_fit(
+    distribution: LifetimeDistribution,
+    power_transformer_data: onp.Array1D[np.void],
+):
     expected_params = distribution.get_params().copy()
     distribution = distribution.fit(
         power_transformer_data["time"],
         event=power_transformer_data["event"],
         entry=power_transformer_data["entry"],
     )
-    assert distribution.get_params() == pytest.approx(expected_params, rel=1e-3)
+    assert_allclose(distribution.get_params(), expected_params, rtol=1e-3)
 
 
-def test_negative_log(distribution_likelihood):
-    params = distribution_likelihood.model.get_params().copy()
-    assert isinstance(distribution_likelihood.negative_log(params), float)
+def test_negative_log(
+    distribution: LifetimeDistribution,
+    power_transformer_data: onp.Array1D[np.void],
+):
+    likelihood = distribution.init_likelihood(
+        power_transformer_data["time"],
+        event=power_transformer_data["event"],
+        entry=power_transformer_data["entry"],
+    )
+    assert isinstance(likelihood.negative_log(distribution.get_params()), float)
 
 
-def test_jac_negative_log(distribution_likelihood):
-    params = distribution_likelihood.model.get_params().copy()
-    assert distribution_likelihood.jac_negative_log(params).shape == (params.size,)
+def test_jac_negative_log(
+    distribution: LifetimeDistribution,
+    power_transformer_data: onp.Array1D[np.void],
+):
+    likelihood = distribution.init_likelihood(
+        power_transformer_data["time"],
+        event=power_transformer_data["event"],
+        entry=power_transformer_data["entry"],
+    )
+    params = distribution.get_params()
+    assert likelihood.jac_negative_log(params).shape == (params.size,)
 
 
-class TestEquilibriumDistribution:
-    # def test_args_names(self, equilibrium_distribution):
-    #     assert equilibrium_distribution.args_names == ()
-    #
-    # def test_rvs(self, equilibrium_distribution):
-    #     m, n = 3, 10
-    #     assert equilibrium_distribution.rvs(seed=21).shape == ()
-    #     assert equilibrium_distribution.rvs(size=(n,), seed=21).shape == (n,)
-    #     assert equilibrium_distribution.rvs(size=(m, 1), seed=21).shape == (m, 1)
-    #     assert equilibrium_distribution.rvs(size=(m, n), seed=21).shape == (m, n)
+@pytest.mark.parametrize(
+    "a_shape, b_shape",
+    generate_shapes(max_ndim=2, nb_args=2),
+    ids=shape_id,
+)
+def test_ls_integrate_broadcasting(
+    distribution: LifetimeDistribution,
+    a_shape: tuple[int] | tuple[int, int],
+    b_shape: tuple[int] | tuple[int, int],
+):
+    a = np.ones(a_shape) * 2.0
+    b = np.ones(b_shape) * 8.0
+    integration = distribution.ls_integrate(
+        np.ones_like,
+        a,
+        b,
+        deg=100,
+    )
+    assert integration.shape == np.broadcast_shapes(a_shape, b_shape)
 
-    @pytest.mark.xfail
-    def test_moment(self, equilibrium_distribution):
-        assert equilibrium_distribution.moment(1).shape == ()
-        assert equilibrium_distribution.moment(2).shape == ()
 
-    @pytest.mark.xfail
-    def test_mean(self, equilibrium_distribution):
-        assert equilibrium_distribution.mean().shape == ()
+def test_ls_integrate(distribution: LifetimeDistribution):
+    a = np.ones((3, 5)) * 2
+    b = np.ones((3, 5)) * 8
+    integration = distribution.ls_integrate(
+        np.ones_like,
+        a,
+        b,
+        deg=100,
+    )
+    assert_allclose(
+        integration,
+        distribution.cdf(b) - distribution.cdf(a),
+    )
 
-    @pytest.mark.xfail
-    def test_var(self, equilibrium_distribution):
-        assert equilibrium_distribution.var().shape == ()
+    def func(x: CoercibleFloat64_ND) -> Float64_ND:
+        return np.float64(x)
 
-    @pytest.mark.xfail
-    def test_median(self, equilibrium_distribution):
-        assert equilibrium_distribution.median().shape == ()
+    integration = distribution.ls_integrate(
+        func,
+        np.zeros_like(a),
+        np.full_like(b, np.inf),
+        deg=100,
+    )
+    assert_allclose(
+        integration, np.full(integration.shape, distribution.mean()), rtol=1e-3
+    )
+
+
+@pytest.mark.parametrize(
+    "a0_shape, a_shape, b_shape",
+    generate_shapes(max_ndim=2, nb_args=3),
+    ids=shape_id,
+)
+def test_a0_ls_integrate_broadcasting(
+    distribution: LifetimeDistribution,
+    a0_shape: tuple[int] | tuple[int, int],
+    a_shape: tuple[int] | tuple[int, int],
+    b_shape: tuple[int] | tuple[int, int],
+):
+    integration = distribution.apply_condition(a0=np.ones(a0_shape) * 0.3).ls_integrate(
+        np.ones_like,
+        np.ones(a_shape) * 2.0,
+        np.ones(b_shape) * 8.0,
+    )
+    assert integration.shape == np.broadcast_shapes(a0_shape, a_shape, b_shape)
+
+
+@pytest.mark.parametrize(
+    "ar_shape, a_shape, b_shape",
+    generate_shapes(max_ndim=2, nb_args=3),
+    ids=shape_id,
+)
+def test_ar_ls_integrate_broadcasting(
+    distribution: LifetimeDistribution,
+    ar_shape: tuple[int] | tuple[int, int],
+    a_shape: tuple[int] | tuple[int, int],
+    b_shape: tuple[int] | tuple[int, int],
+):
+    integration = distribution.apply_condition(ar=np.ones(ar_shape) * 3.0).ls_integrate(
+        np.ones_like,
+        np.ones(a_shape) * 2.0,
+        np.ones(b_shape) * 8.0,
+    )
+    assert integration.shape == np.broadcast_shapes(ar_shape, a_shape, b_shape)
+
+
+def test_moment_broadcasting(distribution: LifetimeDistribution):
+    assert distribution.moment(n=1).shape == ()
+    assert distribution.moment(n=2).shape == ()

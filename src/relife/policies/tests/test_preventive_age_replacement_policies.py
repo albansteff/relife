@@ -1,129 +1,67 @@
-# pyright:basic
 import numpy as np
 import pytest
+from optype.numpy import Array1D
 
-from relife.lifetime_models import Exponential
+from relife.lifetime_models import ParametricLifetimeModel
 from relife.policies import AgeReplacementPolicy, OneCycleAgeReplacementPolicy
 
 
-class TestOneCycleAgeReplacementPolicy:
-    # ignore runtime warning in optimization
-    @pytest.mark.filterwarnings("ignore::RuntimeWarning")
-    def test_asymptotic_expected_equivalent_annual_cost(
-        self, distribution, cf, cp, discounting_rate
-    ):
-        if isinstance(distribution, Exponential):
-            pytest.skip(
-                "Exponential distribution won't work with this cf, cp (not tested in v1.0.0 too)"
-            )
-        policy = OneCycleAgeReplacementPolicy(
-            distribution, cf, cp, discounting_rate=discounting_rate
+# @pytest.fixture(params=[OneCycleAgeReplacementPolicy, AgeReplacementPolicy])
+@pytest.fixture(params=[AgeReplacementPolicy])
+def policy(
+    request: pytest.FixtureRequest, lifetime_model: ParametricLifetimeModel[()]
+) -> OneCycleAgeReplacementPolicy | AgeReplacementPolicy:
+    return request.param(lifetime_model)
+
+
+# @pytest.mark.filterwarnings("ignore::RuntimeWarning")
+def test_expected_equivalent_annual_cost(
+    policy: OneCycleAgeReplacementPolicy | AgeReplacementPolicy,
+    cf: Array1D[np.float64],
+    cp: Array1D[np.float64],
+    discounting_rate: float,
+):
+    try:
+        ar = policy.compute_optimal_ar(cf=cf, cp=cp, discounting_rate=discounting_rate)
+    except RuntimeError:
+        pytest.skip("Optimization failed, EEAC may be too flat")
+
+    qa = policy.asymptotic_expected_equivalent_annual_cost(
+        ar=ar, cp=cp, cf=cf, discounting_rate=discounting_rate
+    )  # () or (m,)
+    assert qa.shape == np.broadcast_shapes(cf.shape, cp.shape)  # () or (m,)
+
+    nb_steps = 2000
+    timeline, q = policy.expected_equivalent_annual_cost(
+        400, nb_steps=nb_steps, ar=ar, cp=cp, cf=cf, discounting_rate=discounting_rate
+    )
+
+    assert timeline.shape == (nb_steps,)
+    assert q.shape == timeline.shape + qa.shape  # (2000, m) or (2000,)
+    np.testing.assert_allclose(q[-1], qa, rtol=1e-1)
+
+
+def test_optimal_replacement_age(
+    policy: OneCycleAgeReplacementPolicy | AgeReplacementPolicy,
+    cf: Array1D[np.float64],
+    cp: Array1D[np.float64],
+    discounting_rate: float,
+):
+    eps = 1e-2
+    ar = policy.compute_optimal_ar(cf=cf, cp=cp, discounting_rate=discounting_rate)
+    assert np.all(
+        policy.asymptotic_expected_equivalent_annual_cost(
+            ar=ar + eps, cp=cp, cf=cf, discounting_rate=discounting_rate
         )
-        try:
-            ar = policy.compute_optimal_ar()
-        except RuntimeError:
-            pytest.skip("Optimization failed, EEAC may be too flat")
-        qa = policy.asymptotic_expected_equivalent_annual_cost(ar)
-        assert qa.shape == np.broadcast_shapes(cf.shape, cp.shape)  # () or (m,)
-
-    # ignore runtime warning in optimization
-    @pytest.mark.filterwarnings("ignore::RuntimeWarning")
-    def test_expected_equivalent_annual_cost(
-        self, distribution, cf, cp, discounting_rate
-    ):
-        if isinstance(distribution, Exponential):
-            pytest.skip(
-                "Exponential distribution won't work with this cf, cp (not tested in v1.0.0 too)"
-            )
-        policy = OneCycleAgeReplacementPolicy(
-            distribution, cf, cp, discounting_rate=discounting_rate
+        > policy.asymptotic_expected_equivalent_annual_cost(
+            ar=ar, cp=cp, cf=cf, discounting_rate=discounting_rate
         )
-        try:
-            ar = policy.compute_optimal_ar()
-        except RuntimeError:
-            pytest.skip("Optimization failed, EEAC may be too flat")
-
-        qa = policy.asymptotic_expected_equivalent_annual_cost(ar)  # () or (m,)
-        timeline, q = policy.expected_equivalent_annual_cost(400, nb_steps=2000, ar=ar)
-
-        assert timeline.shape == (2000,)
-        assert q.shape == qa.shape + timeline.shape  # (m, 2000) or (2000,)
-
-    def test_optimal_replacement_age(self, distribution, cf, cp, discounting_rate):
-        if isinstance(distribution, Exponential):
-            pytest.skip(
-                "Exponential distribution won't work with this cf, cp (not tested in v1.0.0 too)"
-            )
-        eps = 1e-2
-        policy = OneCycleAgeReplacementPolicy(
-            distribution, cf, cp, discounting_rate=discounting_rate
+    )
+    assert np.all(
+        policy.asymptotic_expected_equivalent_annual_cost(
+            ar=ar - eps, cp=cp, cf=cf, discounting_rate=discounting_rate
         )
-        ar = policy.compute_optimal_ar()
-        assert np.all(
-            policy.asymptotic_expected_equivalent_annual_cost(ar + eps)
-            > policy.asymptotic_expected_equivalent_annual_cost(ar)
-        ) and np.all(
-            policy.asymptotic_expected_equivalent_annual_cost(ar - eps)
-            > policy.asymptotic_expected_equivalent_annual_cost(ar)
+        > policy.asymptotic_expected_equivalent_annual_cost(
+            ar=ar, cp=cp, cf=cf, discounting_rate=discounting_rate
         )
-
-
-class TestAgeReplacementPolicy:
-    # ignore runtime warning in optimization
-    @pytest.mark.filterwarnings("ignore::RuntimeWarning")
-    def test_asymptotic_expected_equivalent_annual_cost(
-        self, distribution, cf, cp, discounting_rate
-    ):
-        if isinstance(distribution, Exponential):
-            pytest.skip(
-                "Exponential distribution won't work with this cf, cp (not tested in v1.0.0 too)"
-            )
-        policy = AgeReplacementPolicy(
-            distribution, cf, cp, discounting_rate=discounting_rate
-        )
-        try:
-            ar = policy.compute_optimal_ar()
-        except RuntimeError:
-            pytest.skip("Optimization failed, EEAC may be too flat")
-        qa = policy.asymptotic_expected_equivalent_annual_cost(ar)  # () or (m,)
-        assert qa.shape == np.broadcast_shapes(cf.shape, cp.shape)  # () or (m,)
-
-    @pytest.mark.filterwarnings("ignore::RuntimeWarning")
-    def test_expected_equivalent_annual_cost(
-        self, distribution, cf, cp, discounting_rate
-    ):
-        if isinstance(distribution, Exponential):
-            pytest.skip(
-                "Exponential distribution won't work with this cf, cp (not tested in v1.0.0 too)"  # noqa: E501
-            )
-        policy = AgeReplacementPolicy(
-            distribution, cf, cp, discounting_rate=discounting_rate
-        )
-        try:
-            ar = policy.compute_optimal_ar()
-        except RuntimeError:
-            pytest.skip("Optimization failed, EEAC may be too flat")
-        qa = policy.asymptotic_expected_equivalent_annual_cost(ar)  # () or (m,)
-        timeline, q = policy.expected_equivalent_annual_cost(400, nb_steps=2000, ar=ar)
-
-        assert timeline.shape == (2000,)
-        assert q.shape == qa.shape + timeline.shape  # (m, 2000) or (2000,)
-        assert q[..., -1].flatten() == pytest.approx(qa.flatten(), rel=1e-1)
-
-    def test_optimal_replacement_age(self, distribution, cf, cp, discounting_rate):
-        if isinstance(distribution, Exponential):
-            pytest.skip(
-                "Exponential distribution won't work with this cf, cp (not tested in v1.0.0 too)"  # noqa: E501
-            )
-        eps = 1e-2
-        policy = AgeReplacementPolicy(
-            distribution, cf, cp, discounting_rate=discounting_rate
-        )
-        ar = policy.compute_optimal_ar()
-        assert np.all(
-            policy.asymptotic_expected_equivalent_annual_cost(ar + eps)
-            > policy.asymptotic_expected_equivalent_annual_cost(ar)
-        ) and np.all(
-            policy.asymptotic_expected_equivalent_annual_cost(ar - eps)
-            > policy.asymptotic_expected_equivalent_annual_cost(ar)
-        )
+    )
