@@ -275,9 +275,6 @@ e.g. *only because you think it is more readable*.
 Build the documentation
 -----------------------
 
-Before being able to build the documentation, you need to install `Pandoc <https://pandoc.org/index.html>`_ 
-which is a powerful file converter between many different formats.
-
 To build the documentation locally run the following commands :
 
 .. code-block::
@@ -304,6 +301,24 @@ NumPy documentation style. Here are important points to have in mind if you want
 * Read the `NumPy documentation style guide <https://numpydoc.readthedocs.io/en/latest/format.html>`_
 * Classes documentation .rst files are generated using `Jinja2 <https://jinja.palletsprojects.com/en/stable/>`_ template engine.The template is written in ``class_template.rst`` of the ``doc/source/_templates``. A guide to Jinja2 templating is given in `Sphinx autosummary documentation <https://www.sphinx-doc.org/en/master/usage/extensions/autosummary.html>`_. Basically, one can catch usefull variables like ``methods`` and create nice autosummary tables inside an ``autoclass``. We chose this style because it creates very clean and comprehension interface documentation of the class.
 * Take a special care to attributes class documentation. Sphinx does not handle attribute instances easily, especially when they are **inherited**. One must reference them manually in the object class under the `Attributes` field of the docstring. As it is mentionned in `NumPy documentation style guide <https://numpydoc.readthedocs.io/en/latest/format.html>`__, property methods (getter and/or setter) can be listed there. Their attached docstring will be loaded automatically. One more thing, some IDE (like PyCharm) may raise warnings about unreferenced variables. It is a bug... ignore or disable it at the statement level.
+
+Doctests
+--------
+
+Code blocks in the user guide (``docs/source/getting_started.rst``, ``docs/source/user_guides/``,
+``docs/source/examples/``) are written as real doctests, not illustrative snippets: every ``>>>``
+block is executed and its output checked. Plots use matplotlib's `plot directive
+<https://matplotlib.org/stable/api/sphinxext_plot_directive_api.html>`_, with the plotting code
+itself written in the same doctest format so it's checked too. Run them with:
+
+.. code-block::
+
+    $ pytest --doctest-glob="*.rst" docs/source/getting_started.rst docs/source/user_guides docs/source/examples
+    $ pytest --doctest-modules src/relife/datasets/load.py
+
+When an example's output depends on an iterative solver that isn't bit-exact run to run
+(e.g. ``SemiParametricProportionalHazard``), round the printed value to a stable precision
+rather than asserting on full-precision output.
 
 
 Typing

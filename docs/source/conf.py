@@ -28,8 +28,9 @@ extensions = [
     # (see : https://www.sphinx-doc.org/en/master/usage/extensions/githubpages.html
     # and https://stackoverflow.com/questions/62626125/github-pages-with-sphinx-generated-documentation-not-displaying-html-correctly)
     "sphinx_copybutton",  # copy button in code block
-    "nbsphinx",  # to insert notebook
     "sphinx_design",  # advanced design tools
+    "sphinx.ext.doctest",  # user guide code blocks double as doctests, run via pytest
+    "matplotlib.sphinxext.plot_directive",  # render plots from doctest-style code blocks
 ]
 
 myst_enable_extensions = ["colon_fence"]  # required by sphinx design with myst-parser
@@ -65,7 +66,6 @@ templates_path = ["_templates"]
 exclude_patterns = [
     "_*",
     "user_guides/_*",
-    "user_guides/.ipynb_checkpoints/*",
     "api/_*",
 ]  # note to be parsed by compiler
 
