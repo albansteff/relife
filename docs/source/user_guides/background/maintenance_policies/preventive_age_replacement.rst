@@ -9,24 +9,24 @@ life left.
 
 >>> from relife.datasets import load_circuit_breaker
 >>> from relife.lifetime_models import Weibull
->>> from relife.policies import age_replacement_policy
+>>> from relife.policies import AgeReplacementPolicy
 >>> dataset = load_circuit_breaker()
 >>> weibull = Weibull().fit(dataset["time"], event=dataset["event"], entry=dataset["entry"])
->>> policy = age_replacement_policy(weibull, {"cf": 1500., "cp": 400.})
+>>> policy = AgeReplacementPolicy(weibull)
 
 The expected annual cost depends on the chosen replacement age — evaluating it at a few
 candidate ages already shows there's a sweet spot:
 
->>> [round(float(policy.asymptotic_expected_equivalent_annual_cost(ar=ar)), 2) for ar in (25., 40., 60.)]
+>>> [round(float(policy.asymptotic_expected_equivalent_annual_cost(ar=ar, cf=1500., cp=400.)), 2) for ar in (25., 40., 60.)]
 [16.59, 12.08, 12.54]
 
 Rather than scanning candidate ages by hand, ``compute_optimal_ar`` solves for the
 cost-minimizing age directly [2]_:
 
->>> ar_star = policy.compute_optimal_ar()
+>>> ar_star = policy.compute_optimal_ar(cf=1500., cp=400.)
 >>> round(float(ar_star), 2)
 47.44
->>> round(float(policy.asymptotic_expected_equivalent_annual_cost(ar=ar_star)), 2)
+>>> round(float(policy.asymptotic_expected_equivalent_annual_cost(ar=ar_star, cf=1500., cp=400.)), 2)
 11.69
 
 Replacing preventively at age 47.4 costs about 11.69 per unit of time in the long run,

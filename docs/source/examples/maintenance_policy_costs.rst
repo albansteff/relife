@@ -17,16 +17,16 @@ Baseline scenario: preventive replacement is much cheaper than failure
 With a failure costing :math:`c_f = 1500` and a preventive replacement costing
 :math:`c_p = 400`:
 
->>> from relife.policies import run_to_failure_policy, age_replacement_policy
->>> rtf = run_to_failure_policy(weibull, cf=1500.)
->>> round(float(rtf.asymptotic_expected_equivalent_annual_cost()), 2)
+>>> from relife.policies import RunToFailurePolicy, AgeReplacementPolicy
+>>> rtf = RunToFailurePolicy(weibull)
+>>> round(float(rtf.asymptotic_expected_equivalent_annual_cost(cf=1500.)), 2)
 20.47
 
->>> policy = age_replacement_policy(weibull, {"cf": 1500., "cp": 400.})
->>> ar_star = policy.compute_optimal_ar()
+>>> policy = AgeReplacementPolicy(weibull)
+>>> ar_star = policy.compute_optimal_ar(cf=1500., cp=400.)
 >>> round(float(ar_star), 2)
 47.44
->>> round(float(policy.asymptotic_expected_equivalent_annual_cost(ar=ar_star)), 2)
+>>> round(float(policy.asymptotic_expected_equivalent_annual_cost(ar=ar_star, cf=1500., cp=400.)), 2)
 11.69
 
 Replacing preventively at age 47.4 costs 11.69 per unit of time against 20.47 for
@@ -39,11 +39,11 @@ The size of that gap depends entirely on how much cheaper :math:`c_p` is than :m
 Raising the preventive cost from 400 to 1200 (still below the 1500 failure cost, but not by
 much):
 
->>> policy_expensive = age_replacement_policy(weibull, {"cf": 1500., "cp": 1200.})
->>> ar_star_expensive = policy_expensive.compute_optimal_ar()
+>>> policy_expensive = AgeReplacementPolicy(weibull)
+>>> ar_star_expensive = policy_expensive.compute_optimal_ar(cf=1500., cp=1200.)
 >>> round(float(ar_star_expensive), 2)
 93.53
->>> round(float(policy_expensive.asymptotic_expected_equivalent_annual_cost(ar=ar_star_expensive)), 2)
+>>> round(float(policy_expensive.asymptotic_expected_equivalent_annual_cost(ar=ar_star_expensive, cf=1500., cp=1200.)), 2)
 20.29
 
 The optimal replacement age shifts much later (93.5 instead of 47.4), and the resulting cost
@@ -58,19 +58,19 @@ policy's own optimum reflects that automatically.
     >>> import matplotlib.pyplot as plt
     >>> from relife.datasets import load_circuit_breaker
     >>> from relife.lifetime_models import Weibull
-    >>> from relife.policies import run_to_failure_policy, age_replacement_policy
+    >>> from relife.policies import RunToFailurePolicy, AgeReplacementPolicy
     >>> dataset = load_circuit_breaker()
     >>> weibull = Weibull().fit(dataset["time"], event=dataset["event"], entry=dataset["entry"])
-    >>> rtf = run_to_failure_policy(weibull, cf=1500.)
+    >>> rtf = RunToFailurePolicy(weibull)
     >>> ar_range = np.arange(10., 120., 5.)
     >>> for cp, label in ((400., "$c_p=400$"), (1200., "$c_p=1200$")):
-    ...     policy = age_replacement_policy(weibull, {"cf": 1500., "cp": cp})
+    ...     policy = AgeReplacementPolicy(weibull)
     ...     costs = [
-    ...         float(policy.asymptotic_expected_equivalent_annual_cost(ar=ar))
+    ...         float(policy.asymptotic_expected_equivalent_annual_cost(ar=ar, cf=1500., cp=cp))
     ...         for ar in ar_range
     ...     ]
     ...     _ = plt.plot(ar_range, costs, marker="o", label=label)
-    >>> _ = plt.axhline(float(rtf.asymptotic_expected_equivalent_annual_cost()), color="grey", linestyle="--", label="run-to-failure")
+    >>> _ = plt.axhline(float(rtf.asymptotic_expected_equivalent_annual_cost(cf=1500.)), color="grey", linestyle="--", label="run-to-failure")
     >>> _ = plt.xlabel("replacement age $a_r$")
     >>> _ = plt.ylabel("expected annual cost")
     >>> _ = plt.legend()

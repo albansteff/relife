@@ -11,9 +11,10 @@ unspecified ("semi-parametric" — only the covariate part is parametric).
 >>> from relife.datasets import load_insulator_string
 >>> from relife.lifetime_models import SemiParametricProportionalHazard
 >>> dataset = load_insulator_string()
->>> covar = np.column_stack((dataset["pHCl"], dataset["pH2SO4"], dataset["HNO3"]))
->>> cox = SemiParametricProportionalHazard()
->>> cox = cox.fit(time=dataset["time"], covar=covar, event=dataset["event"])
+>>> covar = [dataset["pHCl"], dataset["pH2SO4"], dataset["HNO3"]]
+>>> cox = SemiParametricProportionalHazard(
+...     time=dataset["time"], covar=covar, event=dataset["event"]
+... )
 >>> np.round(cox.get_params(), 3)  # the underlying solver isn't bit-exact run to run
 array([ 5.088, -2.986,  4.518])
 
@@ -26,7 +27,8 @@ Because there's no parametric baseline, ``sf`` returns the estimated timeline to
 the survival values, rather than evaluating at arbitrary times like a parametric model
 would:
 
->>> timeline, sf_values = cox.sf(covar=covar[:2, :], se=False)
+>>> estimation = cox.sf(*(c[:2] for c in covar), se=False)
+>>> timeline, sf_values = estimation.timeline, estimation.values
 >>> timeline[:3]
 array([1.1, 2.6, 3. ])
 >>> np.round(sf_values[0][:3], 4)
@@ -42,11 +44,12 @@ array([0.9999, 0.9997, 0.9995])
     >>> from relife.datasets import load_insulator_string
     >>> from relife.lifetime_models import SemiParametricProportionalHazard
     >>> dataset = load_insulator_string()
-    >>> covar = np.column_stack((dataset["pHCl"], dataset["pH2SO4"], dataset["HNO3"]))
-    >>> cox = SemiParametricProportionalHazard().fit(
+    >>> covar = [dataset["pHCl"], dataset["pH2SO4"], dataset["HNO3"]]
+    >>> cox = SemiParametricProportionalHazard(
     ...     time=dataset["time"], covar=covar, event=dataset["event"]
     ... )
-    >>> timeline, sf_values = cox.sf(covar=covar[:2, :], se=False)
+    >>> estimation = cox.sf(*(c[:2] for c in covar), se=False)
+    >>> timeline, sf_values = estimation.timeline, estimation.values
     >>> _ = plt.plot(timeline, sf_values[0], label="asset 0")
     >>> _ = plt.plot(timeline, sf_values[1], label="asset 1")
     >>> _ = plt.xlabel("time")

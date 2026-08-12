@@ -29,8 +29,6 @@ and truncation:
 >>> weibull = Weibull().fit(
 ...     dataset["time"], event=dataset["event"], entry=dataset["entry"]
 ... )
->>> weibull.get_params_names()
-('shape', 'rate')
 >>> weibull.get_params()
 array([3.7267452 , 0.01232326])
 
@@ -60,16 +58,16 @@ in a maintenance policy with the relevant costs (see :doc:`user_guides/backgroun
 Replacing only on failure (run-to-failure) versus replacing preventively at a fixed age both have
 an expected annual cost:
 
->>> from relife.policies import run_to_failure_policy, age_replacement_policy
->>> rtf = run_to_failure_policy(weibull, cf=1500.)
->>> rtf.asymptotic_expected_equivalent_annual_cost()
+>>> from relife.policies import RunToFailurePolicy, AgeReplacementPolicy
+>>> rtf = RunToFailurePolicy(weibull)
+>>> rtf.asymptotic_expected_equivalent_annual_cost(cf=1500.)
 np.float64(20.47481108112064)
 
->>> policy = age_replacement_policy(weibull, {"cf": 1500., "cp": 400.})
->>> ar_star = policy.compute_optimal_ar()
+>>> policy = AgeReplacementPolicy(weibull)
+>>> ar_star = policy.compute_optimal_ar(cf=1500., cp=400.)
 >>> ar_star
 np.float64(47.438243830035425)
->>> policy.asymptotic_expected_equivalent_annual_cost(ar=ar_star)
+>>> policy.asymptotic_expected_equivalent_annual_cost(ar=ar_star, cf=1500., cp=400.)
 np.float64(11.68744089432104)
 
 Replacing the asset preventively at age ``ar_star`` roughly halves the expected annual cost

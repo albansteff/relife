@@ -13,8 +13,6 @@ one is a single call, accounting for censoring and truncation as described in
 >>> from relife.lifetime_models import Weibull
 >>> dataset = load_power_transformer()
 >>> weibull = Weibull().fit(dataset["time"], event=dataset["event"], entry=dataset["entry"])
->>> weibull.get_params_names()
-('shape', 'rate')
 >>> weibull.get_params()
 array([3.46597396, 0.0122785 ])
 
@@ -62,15 +60,13 @@ and the baseline distribution's parameters together:
 >>> from relife.datasets import load_insulator_string
 >>> from relife.lifetime_models import ParametricProportionalHazard, Gompertz
 >>> insulator_data = load_insulator_string()
->>> covar = np.column_stack(
-...     (insulator_data["pHCl"], insulator_data["pH2SO4"], insulator_data["HNO3"])
-... )
+>>> covar = [
+...     insulator_data["pHCl"], insulator_data["pH2SO4"], insulator_data["HNO3"]
+... ]
 >>> regression = ParametricProportionalHazard(Gompertz()).fit(
 ...     insulator_data["time"], covar,
 ...     event=insulator_data["event"], entry=insulator_data["entry"],
 ... )
->>> regression.get_params_names()
-('coef_1', 'coef_2', 'coef_3', 'shape', 'rate')
 >>> regression.get_params()
 array([ 4.11133664, -2.67876549,  3.24289683,  0.22422175,  0.02944488])
 

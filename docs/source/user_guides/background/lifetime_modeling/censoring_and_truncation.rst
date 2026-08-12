@@ -113,8 +113,6 @@ each row depending on its ``event``/``entry`` combination:
 
 >>> from relife.lifetime_models import Weibull
 >>> weibull = Weibull().fit(dataset["time"], event=dataset["event"], entry=dataset["entry"])
->>> weibull.get_params_names()
-('shape', 'rate')
 >>> weibull.get_params()
 array([3.46597396, 0.0122785 ])
 

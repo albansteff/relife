@@ -7,10 +7,10 @@ policy is compared against.
 
 >>> from relife.datasets import load_circuit_breaker
 >>> from relife.lifetime_models import Weibull
->>> from relife.policies import run_to_failure_policy
+>>> from relife.policies import RunToFailurePolicy
 >>> dataset = load_circuit_breaker()
 >>> weibull = Weibull().fit(dataset["time"], event=dataset["event"], entry=dataset["entry"])
->>> policy = run_to_failure_policy(weibull, cf=1500.)
+>>> policy = RunToFailurePolicy(weibull)
 >>> type(policy).__name__
 'RunToFailurePolicy'
 
@@ -18,7 +18,7 @@ Under the hood, this wraps the fitted lifetime model in a :doc:`renewal process
 <renewal_theory>` where every renewal costs :math:`c_f` — see :doc:`reward_framework`. The
 long-run expected cost per unit of time follows directly from that:
 
->>> policy.asymptotic_expected_equivalent_annual_cost()
+>>> policy.asymptotic_expected_equivalent_annual_cost(cf=1500.)
 np.float64(20.47481108112064)
 
 Since every renewal has the same cost regardless of when it happens, this only depends on

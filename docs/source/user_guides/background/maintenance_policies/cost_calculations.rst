@@ -10,10 +10,10 @@ compare candidate ages, or let ReLife find the best one directly.
 
 >>> from relife.datasets import load_circuit_breaker
 >>> from relife.lifetime_models import Weibull
->>> from relife.policies import age_replacement_policy
+>>> from relife.policies import AgeReplacementPolicy
 >>> dataset = load_circuit_breaker()
 >>> weibull = Weibull().fit(dataset["time"], event=dataset["event"], entry=dataset["entry"])
->>> policy = age_replacement_policy(weibull, {"cf": 1500., "cp": 400.})
+>>> policy = AgeReplacementPolicy(weibull)
 
 Sweeping the replacement age over a range and reading off the cost traces out a curve with a
 clear minimum:
@@ -25,15 +25,16 @@ clear minimum:
     >>> import matplotlib.pyplot as plt
     >>> from relife.datasets import load_circuit_breaker
     >>> from relife.lifetime_models import Weibull
-    >>> from relife.policies import age_replacement_policy
+    >>> from relife.policies import AgeReplacementPolicy
     >>> dataset = load_circuit_breaker()
     >>> weibull = Weibull().fit(dataset["time"], event=dataset["event"], entry=dataset["entry"])
-    >>> policy = age_replacement_policy(weibull, {"cf": 1500., "cp": 400.})
+    >>> policy = AgeReplacementPolicy(weibull)
     >>> ar_range = np.arange(10., 90., 5.)
     >>> costs = [
-    ...     float(policy.asymptotic_expected_equivalent_annual_cost(ar=ar)) for ar in ar_range
+    ...     float(policy.asymptotic_expected_equivalent_annual_cost(ar=ar, cf=1500., cp=400.))
+    ...     for ar in ar_range
     ... ]
-    >>> ar_star = policy.compute_optimal_ar()
+    >>> ar_star = policy.compute_optimal_ar(cf=1500., cp=400.)
     >>> _ = plt.plot(ar_range, costs, marker="o", label="expected annual cost")
     >>> _ = plt.axvline(float(ar_star), color="grey", linestyle="--", label="optimal $a_r$")
     >>> _ = plt.xlabel("replacement age $a_r$")

@@ -13,8 +13,8 @@ right-censored, as they are here.
 (np.int64(204), 4204)
 
 >>> from relife.lifetime_models import KaplanMeier, NelsonAalen
->>> km = KaplanMeier().fit(dataset["time"], event=dataset["event"], entry=dataset["entry"])
->>> na = NelsonAalen().fit(dataset["time"], event=dataset["event"], entry=dataset["entry"])
+>>> km = KaplanMeier(dataset["time"], event=dataset["event"], entry=dataset["entry"])
+>>> na = NelsonAalen(dataset["time"], event=dataset["event"], entry=dataset["entry"])
 
 Reading off an estimate
 --------------------------
@@ -44,8 +44,8 @@ Comparing the two estimators
     >>> from relife.datasets import load_circuit_breaker
     >>> from relife.lifetime_models import KaplanMeier, NelsonAalen
     >>> dataset = load_circuit_breaker()
-    >>> km = KaplanMeier().fit(dataset["time"], event=dataset["event"], entry=dataset["entry"])
-    >>> na = NelsonAalen().fit(dataset["time"], event=dataset["event"], entry=dataset["entry"])
+    >>> km = KaplanMeier(dataset["time"], event=dataset["event"], entry=dataset["entry"])
+    >>> na = NelsonAalen(dataset["time"], event=dataset["event"], entry=dataset["entry"])
     >>> fig, axs = plt.subplots(ncols=2, nrows=1, figsize=(10, 4))
     >>> _ = km.plot("sf", ax=axs[0])
     >>> _ = na.plot("chf", ax=axs[1])

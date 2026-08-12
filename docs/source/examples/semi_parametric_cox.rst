@@ -10,9 +10,10 @@ from the fully parametric regression in :doc:`regression_modeling`.
 >>> from relife.datasets import load_insulator_string
 >>> from relife.lifetime_models import SemiParametricProportionalHazard
 >>> dataset = load_insulator_string()
->>> covar = np.column_stack((dataset["pHCl"], dataset["pH2SO4"], dataset["HNO3"]))
->>> cox = SemiParametricProportionalHazard()
->>> cox = cox.fit(time=dataset["time"], covar=covar, event=dataset["event"])
+>>> covar = [dataset["pHCl"], dataset["pH2SO4"], dataset["HNO3"]]
+>>> cox = SemiParametricProportionalHazard(
+...     time=dataset["time"], covar=covar, event=dataset["event"]
+... )
 >>> np.round(cox.get_params(), 3)  # the underlying solver isn't bit-exact run to run
 array([ 5.088, -2.986,  4.518])
 >>> round(float(cox.fitting_results.aic), 1), round(float(cox.fitting_results.bic), 1)
@@ -26,8 +27,9 @@ Gompertz — or any other — baseline shape.
 Predicting survival for individual assets
 ---------------------------------------------
 
->>> timeline, sf_values = cox.sf(covar=covar[:3, :], se=False)
->>> covar[:3]
+>>> estimation = cox.sf(*(c[:3] for c in covar), se=False)
+>>> timeline, sf_values = estimation.timeline, estimation.values
+>>> np.column_stack([c[:3] for c in covar])
 array([[0.49, 1.69, 0.24],
        [0.76, 1.79, 0.39],
        [0.43, 1.61, 0.25]])
@@ -47,11 +49,12 @@ than assets 0 and 2, which have similar covariate values and similar predicted s
     >>> from relife.datasets import load_insulator_string
     >>> from relife.lifetime_models import SemiParametricProportionalHazard
     >>> dataset = load_insulator_string()
-    >>> covar = np.column_stack((dataset["pHCl"], dataset["pH2SO4"], dataset["HNO3"]))
-    >>> cox = SemiParametricProportionalHazard().fit(
+    >>> covar = [dataset["pHCl"], dataset["pH2SO4"], dataset["HNO3"]]
+    >>> cox = SemiParametricProportionalHazard(
     ...     time=dataset["time"], covar=covar, event=dataset["event"]
     ... )
-    >>> timeline, sf_values = cox.sf(covar=covar[:3, :], se=False)
+    >>> estimation = cox.sf(*(c[:3] for c in covar), se=False)
+    >>> timeline, sf_values = estimation.timeline, estimation.values
     >>> for idx in (0, 1, 2):
     ...     _ = plt.plot(timeline, sf_values[idx], label=f"asset {idx}")
     >>> _ = plt.xlabel("time")
