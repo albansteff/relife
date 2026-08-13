@@ -6,8 +6,7 @@ time". Assets are still working when the study ends, monitoring starts after som
 have already been in service for a while, and installation dates are sometimes only
 approximately known. Any of these turns a simple "failed at time :math:`t`" record into
 something less direct, and ignoring that distinction leads to systematically wrong
-estimates. ReLife handles it through two arguments accepted by every ``fit`` method:
-``event`` and ``entry``.
+estimates. ReLife handles it through two arguments: ``event`` and ``entry``.
 
 The observation scheme
 -------------------------
@@ -29,9 +28,8 @@ assets on the same calendar to show every combination that can occur:
     happened, without knowing exactly when).
 
 ReLife's ``event``/``entry`` pair covers the two cases that dominate industrial asset data
-(right-censoring and left-truncation), which is why they are the two arguments every ``fit``
-method accepts. Left-censoring (asset 6 above) is rarer in practice and isn't part of
-ReLife's data model.
+(right-censoring and left-truncation), which is why they are the two arguments widely used in ReLife's functions. 
+Note that left-censoring (asset 6 above) is rarer in practice and isn't part of ReLife's data model.
 
 Right censoring
 ----------------
@@ -102,7 +100,7 @@ ones. Ignoring left-truncation (survivor bias) does the opposite: it *overestima
 lifetimes, because units that failed before entering observation are invisible to the
 sample, leaving only the units hardy enough to have survived that long. This is exactly why
 every ReLife lifetime model accounts for both directly in its likelihood (see
-:doc:`distributions_and_regressions`), rather than requiring you to drop or approximate
+:doc:`distributions`), rather than requiring you to drop or approximate
 either kind of observation.
 
 Fitting with censoring and truncation

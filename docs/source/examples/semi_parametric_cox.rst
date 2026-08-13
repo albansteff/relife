@@ -3,8 +3,8 @@ Semi-parametric Cox regression
 
 This example fits the Cox proportional hazard model on the insulator string dataset (see
 :doc:`../user_guides/datasets`). See
-:doc:`../user_guides/background/lifetime_modeling/semi_parametric_cox` for how it differs
-from the fully parametric regression in :doc:`regression_modeling`.
+:ref:`cox_model` for how it differs from the fully parametric regression in
+:doc:`regression_modeling`.
 
 >>> import numpy as np
 >>> from relife.datasets import load_insulator_string

@@ -4,7 +4,7 @@ Regression modeling with covariates
 This example fits a proportional hazard regression on the insulator string dataset (see
 :doc:`../user_guides/datasets`), whose three covariates (acid concentrations) plausibly
 accelerate degradation; see
-:doc:`../user_guides/background/lifetime_modeling/distributions_and_regressions` for the
+:doc:`../user_guides/background/lifetime_modeling/regressions` for the
 model itself.
 
 >>> import numpy as np

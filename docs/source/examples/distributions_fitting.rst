@@ -3,7 +3,7 @@ Fitting parametric distributions
 
 This example fits two candidate distributions on the power transformer dataset (see
 :doc:`../user_guides/datasets`) and picks the better one using the likelihood-based criteria
-introduced in :doc:`../user_guides/background/lifetime_modeling/distributions_and_regressions`.
+introduced in :doc:`../user_guides/background/lifetime_modeling/distributions`.
 
 >>> from relife.datasets import load_power_transformer
 >>> dataset = load_power_transformer()

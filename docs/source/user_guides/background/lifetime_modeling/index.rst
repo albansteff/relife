@@ -10,5 +10,5 @@ semi-parametric Cox model.
 
     censoring_and_truncation
     non_parametric_models
-    distributions_and_regressions
-    semi_parametric_cox
+    distributions
+    regressions
