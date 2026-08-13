@@ -2,7 +2,7 @@ Semi-parametric Cox regression
 ================================
 
 This example fits the Cox proportional hazard model on the insulator string dataset (see
-:doc:`../user_guides/datasets`) — see
+:doc:`../user_guides/datasets`). See
 :doc:`../user_guides/background/lifetime_modeling/semi_parametric_cox` for how it differs
 from the fully parametric regression in :doc:`regression_modeling`.
 
@@ -19,10 +19,10 @@ array([ 5.088, -2.986,  4.518])
 >>> round(float(cox.fitting_results.aic), 1), round(float(cox.fitting_results.bic), 1)
 (35358.4, 35380.6)
 
-The three coefficients — for ``pHCl``, ``pH2SO4`` and ``HNO3`` respectively — are close to
+The three coefficients (for ``pHCl``, ``pH2SO4`` and ``HNO3`` respectively) are close to
 the ones found with the fully parametric ``ParametricProportionalHazard(Gompertz())`` fit in
 :doc:`regression_modeling` (4.11, -2.68, 3.24 there), even though this model never assumed a
-Gompertz — or any other — baseline shape.
+Gompertz (or any other) baseline shape.
 
 Predicting survival for individual assets
 ---------------------------------------------
@@ -63,5 +63,5 @@ than assets 0 and 2, which have similar covariate values and similar predicted s
     >>> plt.show()
 
 Unlike a fitted parametric model, this survival curve is only defined on the observed
-timeline — there's no baseline formula to extrapolate from, which is the trade-off for not
+timeline: there's no baseline formula to extrapolate from, which is the trade-off for not
 having to choose a baseline shape in the first place.

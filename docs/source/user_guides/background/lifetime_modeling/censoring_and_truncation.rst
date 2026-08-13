@@ -28,15 +28,15 @@ assets on the same calendar to show every combination that can occur:
     **left-censoring**, dashed, if a failure before :math:`t_{start}` is only known to have
     happened, without knowing exactly when).
 
-ReLife's ``event``/``entry`` pair covers the two cases that dominate industrial asset data —
-right-censoring and left-truncation — which is why they are the two arguments every ``fit``
+ReLife's ``event``/``entry`` pair covers the two cases that dominate industrial asset data
+(right-censoring and left-truncation), which is why they are the two arguments every ``fit``
 method accepts. Left-censoring (asset 6 above) is rarer in practice and isn't part of
 ReLife's data model.
 
 Right censoring
 ----------------
 
-An observation is **right-censored** when the actual failure time is unknown — the asset
+An observation is **right-censored** when the actual failure time is unknown: the asset
 was still working the last time it was observed, so all we know is that its lifetime is
 *at least* ``time``. This is flagged with ``event=False``.
 
@@ -61,7 +61,7 @@ Left truncation
 -----------------
 
 An observation is **left-truncated** when the asset had already survived up to some age
-before it entered observation — for instance, monitoring only started once a transformer
+before it entered observation. For instance, monitoring only started once a transformer
 had already been in service for a while. Assets of the same population that failed *before*
 entering observation are invisible to the dataset, which biases naive estimates towards
 longer lifetimes if left unaccounted for. This is captured with the ``entry`` field: the age
@@ -82,18 +82,18 @@ the fleet in this dataset was already in service before entering observation:
 Why getting this right matters
 ---------------------------------
 
-Mishandling either one doesn't just add noise — it biases the result in a predictable
+Mishandling either one doesn't just add noise: it biases the result in a predictable
 direction, and the effect can be large. On a real fleet of RTE high-voltage assets,
 estimating a mean lifetime under three assumptions gives:
 
 .. figure:: /_static/figures/censoring_bias.png
-    :alt: Survival curves and mean lifetimes under three assumptions about the same industrial dataset — 16, 38, and 46 years.
+    :alt: Survival curves and mean lifetimes under three assumptions about the same industrial dataset: 16, 38, and 46 years.
     :width: 100%
 
     Same dataset, three assumptions. Counting only
     observed failures and ignoring the still-working assets (**mortality bias**) gives a mean
     lifetime of 16 years. Accounting for right-censoring but ignoring left-truncation
-    (**survivor bias**) gives 46 years. Accounting for both gives 38 years — the correct
+    (**survivor bias**) gives 46 years. Accounting for both gives 38 years: the correct
     figure lies in between, not at either extreme.
 
 Ignoring censoring entirely (mortality bias) systematically *underestimates* how long assets
@@ -108,7 +108,7 @@ either kind of observation.
 Fitting with censoring and truncation
 ---------------------------------------
 
-Both are passed to ``fit`` together — ReLife builds the correct likelihood contribution for
+Both are passed to ``fit`` together: ReLife builds the correct likelihood contribution for
 each row depending on its ``event``/``entry`` combination:
 
 >>> from relife.lifetime_models import Weibull

@@ -2,7 +2,7 @@ Run-to-failure policy
 =======================
 
 The simplest maintenance policy: an asset is used until it fails, then replaced, at a cost
-:math:`c_f` per failure [1]_. There is no preventive action — it's the baseline every other
+``cf`` per failure [1]_. There is no preventive action: it's the baseline every other
 policy is compared against.
 
 >>> from relife.datasets import load_circuit_breaker
@@ -15,14 +15,14 @@ policy is compared against.
 'RunToFailurePolicy'
 
 Under the hood, this wraps the fitted lifetime model in a :doc:`renewal process
-<renewal_theory>` where every renewal costs :math:`c_f` — see :doc:`reward_framework`. The
+<renewal_theory>` where every renewal costs ``cf`` (see :doc:`reward_framework`). The
 long-run expected cost per unit of time follows directly from that:
 
 >>> policy.asymptotic_expected_equivalent_annual_cost(cf=1500.)
 np.float64(20.47481108112064)
 
 Since every renewal has the same cost regardless of when it happens, this only depends on
-how often the asset needs replacing — i.e. on the fitted lifetime model — not on any
+how often the asset needs replacing (i.e. on the fitted lifetime model), not on any
 decision variable. Compare with :doc:`preventive_age_replacement`, where replacing *before*
 failure can lower this expected cost.
 

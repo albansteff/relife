@@ -4,7 +4,7 @@ Datasets
 ReLife ships three example datasets under ``relife.datasets``, all real RTE-France
 power-grid equipment lifetime data. Each one is loaded as a NumPy structured array with a
 ``time`` (observed lifetime), ``event`` (``True`` if the failure was actually observed,
-``False`` if right-censored) and ``entry`` (left-truncation age) field — see
+``False`` if right-censored) and ``entry`` (left-truncation age) field; see
 :doc:`background/lifetime_modeling/censoring_and_truncation` for what those mean.
 
 Circuit breakers
@@ -18,7 +18,7 @@ Circuit breakers
 4204
 
 4204 circuit breakers, no covariates. Only a small fraction (204, ~5%) were actually
-observed failing — the rest are right-censored — and 4000 were already in service before
+observed failing (the rest are right-censored), and 4000 were already in service before
 entering observation. This heavy censoring makes it a good illustration of
 :doc:`background/lifetime_modeling/non_parametric_models` (see
 :doc:`../examples/non_parametric_estimation`).
@@ -48,7 +48,7 @@ Insulator strings
 >>> len(dataset)
 12000
 
-12000 insulator strings — the only dataset with covariates: ``pHCl``, ``pH2SO4`` and
+12000 insulator strings, the only dataset with covariates: ``pHCl``, ``pH2SO4`` and
 ``HNO3``, the acid concentrations the insulators are exposed to, which accelerate their
 degradation. 2196 observed failures and 8216 left-truncated units. Used for both the
 parametric regression and semi-parametric Cox examples (see

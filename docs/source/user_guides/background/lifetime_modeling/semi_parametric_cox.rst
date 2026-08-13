@@ -5,7 +5,7 @@ The semi-parametric Cox model
 baseline distribution shape and estimates it jointly with the covariate effect. The Cox
 proportional hazard model relaxes that assumption: it estimates the covariate effect without
 committing to any particular shape for the baseline hazard, which is instead left
-unspecified ("semi-parametric" — only the covariate part is parametric).
+unspecified ("semi-parametric": only the covariate part is parametric).
 
 >>> import numpy as np
 >>> from relife.datasets import load_insulator_string
@@ -20,7 +20,7 @@ array([ 5.088, -2.986,  4.518])
 
 These three coefficients are the covariate effects (for ``pHCl``, ``pH2SO4`` and ``HNO3``),
 directly comparable to the first three coefficients of the ``ParametricProportionalHazard``
-fit in :doc:`distributions_and_regressions` — without needing to also get the baseline
+fit in :doc:`distributions_and_regressions`, without needing to also get the baseline
 distribution's shape right.
 
 Because there's no parametric baseline, ``sf`` returns the estimated timeline together with

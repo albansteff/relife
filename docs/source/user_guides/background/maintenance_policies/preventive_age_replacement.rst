@@ -2,8 +2,8 @@ Preventive age replacement policy
 ====================================
 
 Instead of always waiting for failure, an asset can be replaced preventively once it
-reaches a fixed age :math:`a_r`, at a (usually lower) cost :math:`c_p`; it is still replaced
-at cost :math:`c_f` if it fails before reaching :math:`a_r` [1]_. Choosing :math:`a_r`
+reaches a fixed age ``ar``, at a (usually lower) cost ``cp``; it is still replaced
+at cost ``cf`` if it fails before reaching ``ar`` [1]_. Choosing ``ar``
 trades off the risk of an expensive failure against replacing an asset that still had useful
 life left.
 
@@ -14,7 +14,7 @@ life left.
 >>> weibull = Weibull().fit(dataset["time"], event=dataset["event"], entry=dataset["entry"])
 >>> policy = AgeReplacementPolicy(weibull)
 
-The expected annual cost depends on the chosen replacement age — evaluating it at a few
+The expected annual cost depends on the chosen replacement age, and evaluating it at a few
 candidate ages already shows there's a sweet spot:
 
 >>> [round(float(policy.asymptotic_expected_equivalent_annual_cost(ar=ar, cf=1500., cp=400.)), 2) for ar in (25., 40., 60.)]
@@ -30,7 +30,7 @@ cost-minimizing age directly [2]_:
 11.69
 
 Replacing preventively at age 47.4 costs about 11.69 per unit of time in the long run,
-against 20.47 for :doc:`run_to_failure` on the same fitted model and failure cost — see
+against 20.47 for :doc:`run_to_failure` on the same fitted model and failure cost; see
 :doc:`cost_calculations` for where these numbers come from mechanically, and
 :doc:`../../../examples/maintenance_policy_costs` for a fuller worked example.
 

@@ -14,8 +14,8 @@ comparison changes with the cost structure.
 Baseline scenario: preventive replacement is much cheaper than failure
 --------------------------------------------------------------------------
 
-With a failure costing :math:`c_f = 1500` and a preventive replacement costing
-:math:`c_p = 400`:
+With a failure costing ``cf`` = 1500 and a preventive replacement costing ``cp`` = 400 (any
+unit works, as long as both use the same one):
 
 >>> from relife.policies import RunToFailurePolicy, AgeReplacementPolicy
 >>> rtf = RunToFailurePolicy(weibull)
@@ -30,12 +30,12 @@ With a failure costing :math:`c_f = 1500` and a preventive replacement costing
 11.69
 
 Replacing preventively at age 47.4 costs 11.69 per unit of time against 20.47 for
-run-to-failure — a clear win for preventive replacement here.
+run-to-failure, a clear win for preventive replacement here.
 
 Sensitivity: what if preventive replacement isn't that much cheaper?
 -------------------------------------------------------------------------
 
-The size of that gap depends entirely on how much cheaper :math:`c_p` is than :math:`c_f`.
+The size of that gap depends entirely on how much cheaper ``cp`` is than ``cf``.
 Raising the preventive cost from 400 to 1200 (still below the 1500 failure cost, but not by
 much):
 
@@ -47,7 +47,7 @@ much):
 20.29
 
 The optimal replacement age shifts much later (93.5 instead of 47.4), and the resulting cost
-(20.29) is almost identical to run-to-failure's 20.47 — when preventive maintenance is
+(20.29) is almost identical to run-to-failure's 20.47: when preventive maintenance is
 nearly as expensive as a failure, there's very little to gain from doing it early, and the
 policy's own optimum reflects that automatically.
 
@@ -63,7 +63,7 @@ policy's own optimum reflects that automatically.
     >>> weibull = Weibull().fit(dataset["time"], event=dataset["event"], entry=dataset["entry"])
     >>> rtf = RunToFailurePolicy(weibull)
     >>> ar_range = np.arange(10., 120., 5.)
-    >>> for cp, label in ((400., "$c_p=400$"), (1200., "$c_p=1200$")):
+    >>> for cp, label in ((400., "cp=400"), (1200., "cp=1200")):
     ...     policy = AgeReplacementPolicy(weibull)
     ...     costs = [
     ...         float(policy.asymptotic_expected_equivalent_annual_cost(ar=ar, cf=1500., cp=cp))
@@ -71,14 +71,14 @@ policy's own optimum reflects that automatically.
     ...     ]
     ...     _ = plt.plot(ar_range, costs, marker="o", label=label)
     >>> _ = plt.axhline(float(rtf.asymptotic_expected_equivalent_annual_cost(cf=1500.)), color="grey", linestyle="--", label="run-to-failure")
-    >>> _ = plt.xlabel("replacement age $a_r$")
+    >>> _ = plt.xlabel("replacement age ar")
     >>> _ = plt.ylabel("expected annual cost")
     >>> _ = plt.legend()
     >>> plt.show()
 
 The cheaper-preventive-cost curve has a sharper, earlier minimum well below the
 run-to-failure line; the more-expensive-preventive-cost curve is flatter and only barely
-dips under it — the cost structure, not just the lifetime model, decides whether preventive
+dips under it: the cost structure, not just the lifetime model, decides whether preventive
 replacement is worth it.
 
 The annual-cost curves above summarize the long-run rate, but a fleet manager also cares
@@ -90,5 +90,5 @@ about the cumulative cost trajectory over time:
 
     Simulated cumulative cost trajectories, optimal age-replacement policy versus
     run-to-failure, for two lifetime models. The gap between the solid (optimal policy) and dashed
-    (run-to-failure) lines widens steadily — exactly the kind of forecast that determines the
+    (run-to-failure) lines widens steadily, exactly the kind of forecast that determines the
     budget and stock of spare parts to plan for over a given horizon.

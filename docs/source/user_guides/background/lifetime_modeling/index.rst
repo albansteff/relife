@@ -1,7 +1,7 @@
 Lifetime modeling
 ==================
 
-How ReLife turns raw failure-time data — with censoring and truncation — into a lifetime
+How ReLife turns raw failure-time data (with censoring and truncation) into a lifetime
 model, from non-parametric estimators to parametric distributions, regressions, and the
 semi-parametric Cox model.
 

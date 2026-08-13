@@ -20,12 +20,12 @@ Maximum likelihood and choosing a shape
 ------------------------------------------
 
 Fitting works by maximizing the likelihood of the observed data under the chosen
-distribution — each row contributes a term to the log-likelihood that depends on whether it
+distribution: each row contributes a term to the log-likelihood that depends on whether it
 was an observed failure, a right-censored observation, or left-truncated (see
 :doc:`censoring_and_truncation`), and ``fit`` searches for the parameters that maximize the
 sum of these terms (equivalently, minimize the negative log-likelihood). The result is
 stored on ``fitting_results``, along with information criteria (AIC, AICc, BIC) that let you
-compare *different distribution shapes* fitted on the same data — the lower, the better the
+compare *different distribution shapes* fitted on the same data; the lower, the better the
 trade-off between fit quality and number of parameters:
 
 >>> print(weibull.fitting_results)
@@ -45,7 +45,7 @@ BIC           : 3453.18
 On this dataset, the Weibull shape has both a lower AIC and a lower BIC than Gamma, so it's
 the better-supported choice between the two.
 
-Regressions — adding covariates
+Regressions: adding covariates
 -----------------------------------
 
 A distribution alone can't account for the fact that different assets operate under

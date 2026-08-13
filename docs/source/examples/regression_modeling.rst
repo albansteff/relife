@@ -3,7 +3,7 @@ Regression modeling with covariates
 
 This example fits a proportional hazard regression on the insulator string dataset (see
 :doc:`../user_guides/datasets`), whose three covariates (acid concentrations) plausibly
-accelerate degradation — see
+accelerate degradation; see
 :doc:`../user_guides/background/lifetime_modeling/distributions_and_regressions` for the
 model itself.
 
@@ -11,7 +11,7 @@ model itself.
 >>> from relife.datasets import load_insulator_string
 >>> dataset = load_insulator_string()
 
-Covariates are passed as a **sequence of 1d arrays** — one array per covariate, not a single
+Covariates are passed as a **sequence of 1d arrays**: one array per covariate, not a single
 2d array:
 
 >>> covar = [dataset["pHCl"], dataset["pH2SO4"], dataset["HNO3"]]
@@ -28,7 +28,7 @@ array([ 4.11133664, -2.67876549,  3.24289683,  0.22422175,  0.02944488])
 The first three values are the covariate coefficients, in the order the covariates were passed
 (``pHCl``, ``pH2SO4``, ``HNO3``); the last two are the baseline Gompertz ``shape`` and ``rate``.
 
-All three coefficients are far from zero, and of different signs — ``pHCl`` and ``HNO3``
+All three coefficients are far from zero, and of different signs: ``pHCl`` and ``HNO3``
 increase the hazard rate (positive coefficients), while ``pH2SO4`` decreases it. Two
 insulators exposed to different acid concentrations therefore have different hazard curves,
 even though they share the same baseline Gompertz shape:
@@ -56,7 +56,7 @@ even though they share the same baseline Gompertz shape:
     >>> plt.show()
 
 ``ParametricAcceleratedFailureTime`` fits the same way and accepts the same covariates, but
-rescales *time* by the covariate effect instead of the hazard rate — the choice between the
+rescales *time* by the covariate effect instead of the hazard rate; the choice between the
 two is about which effect shape better matches the physical degradation mechanism, not a
 difference in how you call them. For a covariate effect estimated without committing to a
 baseline shape at all, see :doc:`semi_parametric_cox`.

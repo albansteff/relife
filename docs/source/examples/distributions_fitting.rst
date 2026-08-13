@@ -35,7 +35,7 @@ AIC           : 3374.22
 AICc          : 3374.23
 BIC           : 3385.04
 
-Gompertz has both a lower AIC and a lower BIC here — for this fleet of transformers, its
+Gompertz has both a lower AIC and a lower BIC here: for this fleet of transformers, its
 shape describes the observed failure pattern better than Weibull's.
 
 .. plot::
@@ -58,5 +58,5 @@ shape describes the observed failure pattern better than Weibull's.
 
 The two fitted survival curves are close over most of the timeline but diverge past around
 80 time units, which is where the AIC/BIC gap above comes from. Once you've picked a
-distribution, plug it into a maintenance policy — see
+distribution, plug it into a maintenance policy; see
 :doc:`maintenance_policy_costs`.
