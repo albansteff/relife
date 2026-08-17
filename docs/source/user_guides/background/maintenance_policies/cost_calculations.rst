@@ -68,7 +68,7 @@ What ``asymptotic`` means for a one-cycle policy
 ---------------------------------------------------
 
 ``OneCycleRunToFailurePolicy`` and ``OneCycleAgeReplacementPolicy`` expose exactly the same
-four methods, so the two families are drop-in interchangeable — but the quantities they
+four methods, so the two families are drop-in interchangeable. But the quantities they
 return answer different questions, and mixing them up is the easy mistake to make here.
 
 For a renewal policy, the ``asymptotic_`` prefix means *as the number of renewals grows*: the

@@ -16,16 +16,7 @@ way:
 
 Each simulated asset lifetime is a random draw, so the number of renewals observed by time
 :math:`t`, written :math:`N(t)`, is itself random and traces out a step function that jumps
-by one at every replacement:
-
-.. figure:: /_static/figures/renewal_process_paths.png
-    :alt: Two simulated realizations of a renewal counting process N(t), each a step function jumping at every renewal, for a Weibull and a Gompertz lifetime model, with and without a cap on lifetime.
-    :width: 100%
-
-    Two simulated realizations of :math:`N(t)`, one per lifetime model, each shown with and
-    without an age cap (equivalent to a preventive replacement policy, see
-    :doc:`preventive_age_replacement`). No two realizations look alike, but they all share
-    the same *expected* shape.
+by one at every replacement.
 
 The quantity of interest for planning purposes isn't one random realization, but its
 average across the whole fleet: the expected number of renewals up to time :math:`t`, the

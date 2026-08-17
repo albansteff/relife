@@ -39,7 +39,7 @@ Stopping after one cycle
 
 Like :doc:`run_to_failure`, this policy has a one-cycle counterpart for decisions that only
 concern the asset currently in service. ``OneCycleAgeReplacementPolicy`` charges ``cp`` if
-the asset reaches ``ar`` and ``cf`` if it fails before, then stops — there is no renewal, so
+the asset reaches ``ar`` and ``cf`` if it fails before, then stops; there is no renewal, so
 the expected cost of the cycle is simply the two costs weighted by their probabilities:
 
 >>> from relife.policies import OneCycleAgeReplacementPolicy
@@ -55,8 +55,8 @@ Because the criterion being minimized is not the same, the optimal age isn't eit
 >>> round(float(one_cycle.asymptotic_expected_equivalent_annual_cost(ar=one_cycle_ar_star, cf=1500., cp=400.)), 2)
 12.77
 
-Both optima sit in the same region — the lifetime model, not the horizon, does most of the
-work — but the one-cycle optimum lands slightly earlier here, and its annualized cost (12.77)
+Both optima sit in the same region: the lifetime model, not the horizon, does most of the
+work. But the one-cycle optimum lands slightly earlier here, and its annualized cost (12.77)
 is not directly comparable to the renewal policy's 11.69: the two numbers annualize over
 different horizons (see :doc:`cost_calculations`). Use the one-cycle policies to rank options
 for a single asset, and the renewal policies to plan a fleet over the long run.

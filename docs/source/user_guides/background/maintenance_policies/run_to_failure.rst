@@ -30,8 +30,8 @@ Stopping after one cycle
 --------------------------
 
 ``RunToFailurePolicy`` assumes the asset is replaced again and again, indefinitely. When the
-decision only concerns the asset currently in service — one replacement, with no commitment
-to what happens afterwards — ``OneCycleRunToFailurePolicy`` stops at the first failure
+decision only concerns the asset currently in service (one replacement, with no commitment
+to what happens afterwards), ``OneCycleRunToFailurePolicy`` stops at the first failure
 instead of renewing:
 
 >>> from relife.policies import OneCycleRunToFailurePolicy
