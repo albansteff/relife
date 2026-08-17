@@ -55,3 +55,10 @@ of :math:`1/\mathbb{E}[X]` this early in the timeline.
 This is the mechanism that everything else in the maintenance-policy layer is built on: a
 policy replaces "renewal" with "renewal *and its cost*" (see :doc:`reward_framework`) to
 go from "how many replacements do I expect" to "how much will they cost".
+
+The one exception is the one-cycle policies (``OneCycleRunToFailurePolicy`` and
+``OneCycleAgeReplacementPolicy``, see :doc:`run_to_failure` and
+:doc:`preventive_age_replacement`). Since they stop at the first replacement, there is no
+sequence of renewals to solve for: no renewal equation is involved, and their costs are
+obtained by integrating the reward directly against the lifetime distribution of the single
+cycle.

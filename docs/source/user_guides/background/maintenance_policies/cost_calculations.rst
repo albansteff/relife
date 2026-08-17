@@ -63,3 +63,25 @@ sharp the minimum is changes:
 
 The same cost structure also lets you compare policies directly for a given fleet and set of
 costs; see :doc:`../../../examples/maintenance_policy_costs` for a complete comparison.
+
+What ``asymptotic`` means for a one-cycle policy
+---------------------------------------------------
+
+``OneCycleRunToFailurePolicy`` and ``OneCycleAgeReplacementPolicy`` expose exactly the same
+four methods, so the two families are drop-in interchangeable — but the quantities they
+return answer different questions, and mixing them up is the easy mistake to make here.
+
+For a renewal policy, the ``asymptotic_`` prefix means *as the number of renewals grows*: the
+net present value diverges without discounting, and the annual cost converges to a long-run
+rate. For a one-cycle policy there is only ever one replacement, so the prefix simply means
+*over the whole of that single cycle*, with no truncation at a finite horizon. Its net present
+value is therefore finite even undiscounted (it is the expected cost of one replacement), and
+its annual cost is the expected cost annualized over the realized cycle duration rather than
+a long-run rate.
+
+Two practical consequences: an undiscounted ``asymptotic_expected_net_present_value`` is
+readable for a one-cycle policy and meaningless (infinite) for a renewal one, and
+``asymptotic_expected_equivalent_annual_cost`` values should only ever be compared *within*
+one family. The finite-horizon ``expected_net_present_value`` and
+``expected_equivalent_annual_cost`` remain comparable across both, since they are evaluated on
+the same explicit timeline.
