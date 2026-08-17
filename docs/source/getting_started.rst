@@ -58,6 +58,11 @@ It's a good idea to start with a **non-parametric** model, which assumes no part
 The Kaplan-Meier estimator is a step function that drops at each observed failure and stays
 flat in between, so it follows the data without imposing any parameters on it:
 
+>>> from relife.lifetime_models import KaplanMeier
+>>> km = KaplanMeier(
+...     dataset["time"], event=dataset["event"], entry=dataset["entry"]
+... )
+
 .. plot::
     :context: close-figs
 
