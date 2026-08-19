@@ -11,10 +11,12 @@ provides two censoring-aware estimators for this, Kaplan-Meier and Nelson-Aalen.
 >>> from relife.datasets import load_circuit_breaker
 >>> dataset = load_circuit_breaker()
 
-Both estimators share the same idea. Write :math:`t_1 < t_2 < \dots < t_n` for the ordered
-distinct observed times, :math:`d_i` for the number of failures recorded at :math:`t_i`, and
-:math:`n_i` for the number of units **at risk** just prior to :math:`t_i`, that is the units
-already entered and not yet failed or censored:
+Both estimators share the same idea. Index the units of the dataset by :math:`j`, so that
+unit :math:`j` is observed on :math:`[\textrm{entry}_j, \textrm{time}_j]`, and write
+:math:`t_1 < t_2 < \dots < t_n` for the ordered distinct observed times, :math:`d_i` for the
+number of failures recorded at :math:`t_i`, and :math:`n_i` for the number of units
+**at risk** just prior to :math:`t_i`, that is the units already entered and not yet failed
+or censored:
 
 .. math::
 

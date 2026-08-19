@@ -78,11 +78,8 @@ implemented:
                       + \sum_{i \in \mathcal{C}} H(t_i; \theta)
                       - \sum_i H(a_i; \theta)
 
-Interval-censored observations, when present, contribute
-:math:`-\log \left( F(t_i^{\sup}; \theta) - F(t_i^{\inf}; \theta) \right)` instead: all we
-know is that the failure fell inside the interval. Dropping the ``event`` and ``entry``
-arguments is not a neutral simplification, it changes which of these terms are used, and
-therefore the estimate.
+Dropping the ``event`` and ``entry`` arguments is not a neutral simplification, it 
+changes which of these terms are used, and therefore the estimate.
 
 The minimization is delegated to SciPy, and the value reached at the optimum is kept:
 

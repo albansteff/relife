@@ -25,7 +25,9 @@ same way, with the covariates passed alongside the lifetimes:
 
 >>> import numpy as np
 >>> from relife.datasets import load_insulator_string
->>> from relife.lifetime_models import ParametricProportionalHazard, Gompertz
+>>> from relife.lifetime_models import (
+...     ParametricAcceleratedFailureTime, ParametricProportionalHazard, Gompertz
+... )
 >>> insulator_data = load_insulator_string()
 >>> covar = [
 ...     insulator_data["pHCl"], insulator_data["pH2SO4"], insulator_data["HNO3"]
@@ -36,11 +38,19 @@ same way, with the covariates passed alongside the lifetimes:
 ... )
 >>> regression.get_params()
 array([ 4.11133664, -2.67876549,  3.24289683,  0.22422175,  0.02944488])
+>>> aft = ParametricAcceleratedFailureTime(Gompertz()).fit(
+...     insulator_data["time"], covar,
+...     event=insulator_data["event"], entry=insulator_data["entry"],
+... )
+>>> aft.get_params()
+array([0.15836749, 0.55937619, 0.08872482, 0.09797587, 0.04948185])
 
-The first three parameters are the covariate coefficients (for ``pHCl``, ``pH2SO4`` and
-``HNO3`` respectively), and the last two are the baseline Gompertz distribution's own
-parameters. A positive coefficient raises the hazard: here ``pHCl`` and ``HNO3`` shorten
-lifetimes while ``pH2SO4`` lengthens them.
+In both fits the first three parameters are the covariate coefficients (for ``pHCl``,
+``pH2SO4`` and ``HNO3`` respectively), and the last two are the baseline Gompertz
+distribution's own parameters. Under the proportional hazard form, a positive coefficient
+raises the hazard: here ``pHCl`` and ``HNO3`` shorten lifetimes while ``pH2SO4`` lengthens
+them. The coefficients of the two forms are not directly comparable, since they act on
+different scales, the hazard level for one and the time axis for the other.
 
 The hazard ratio
 ------------------------------------------
@@ -119,11 +129,6 @@ read off depends on the baseline shape you assumed. So the shape has to be chose
 same care as in the distribution-only case, and the same information criteria arbitrate,
 counting all parameters, coefficients included:
 
->>> from relife.lifetime_models import ParametricAcceleratedFailureTime
->>> aft = ParametricAcceleratedFailureTime(Gompertz()).fit(
-...     insulator_data["time"], covar,
-...     event=insulator_data["event"], entry=insulator_data["entry"],
-... )
 >>> round(regression.fitting_results.aic, 1)
 np.float64(24431.4)
 >>> round(aft.fitting_results.aic, 1)

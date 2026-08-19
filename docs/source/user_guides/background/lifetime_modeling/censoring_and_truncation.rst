@@ -22,7 +22,7 @@ assets on the same calendar to show every combination that can occur:
 
     Observation scheme for six assets. A filled circle is an observed failure; an open circle means the asset was still working
     when the observation window closed at :math:`t_{end}` (**right-censoring**); a
-    left-pointing triangle before :math:`t_{start}` means the asset was already installed
+    right-pointing triangle before :math:`t_{start}` means the asset was already installed
     before observation began (**left-truncation** if it fails after :math:`t_{start}`, or
     **left-censoring**, dashed, if a failure before :math:`t_{start}` is only known to have
     happened, without knowing exactly when).
@@ -81,8 +81,8 @@ Why getting this right matters
 ---------------------------------
 
 Mishandling either one doesn't just add noise: it biases the result in a predictable
-direction, and the effect can be large. On a real fleet of RTE high-voltage assets,
-estimating a mean lifetime under three assumptions gives:
+direction, and the effect can be large. On a fleet of high-voltage assets, estimating 
+a mean lifetime under three assumptions gives:
 
 .. figure:: /_static/figures/censoring_bias.png
     :alt: Survival curves and mean lifetimes under three assumptions about the same industrial dataset: 16, 38, and 46 years.
