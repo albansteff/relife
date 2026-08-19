@@ -15,11 +15,24 @@ policy is compared against.
 'RunToFailurePolicy'
 
 Under the hood, this wraps the fitted lifetime model in a :doc:`renewal process
-<renewal_theory>` where every renewal costs ``cf`` (see :doc:`reward_framework`). The
-long-run expected cost per unit of time follows directly from that:
+<renewal_theory>` where every renewal costs ``cf``, i.e. a constant reward
+:math:`Y = c_f` (see :doc:`reward_framework`). The long-run expected cost per unit of time
+follows directly from that: undiscounted, the renewal reward theorem gives the expected cost
+of one cycle divided by its expected duration,
+
+.. math::
+
+    z^\infty = \frac{\mathbb{E}[Y]}{\mathbb{E}[X]} = \frac{c_f}{\mathbb{E}[X]}
+
+where :math:`X` is the asset's lifetime. This is what the policy reports:
 
 >>> policy.asymptotic_expected_equivalent_annual_cost(cf=1500.)
 np.float64(20.47481108112064)
+
+which is indeed ``cf`` divided by the mean lifetime of the fitted Weibull:
+
+>>> float(1500. / weibull.mean())
+20.47481108112051
 
 Since every renewal has the same cost regardless of when it happens, this only depends on
 how often the asset needs replacing (i.e. on the fitted lifetime model), not on any
