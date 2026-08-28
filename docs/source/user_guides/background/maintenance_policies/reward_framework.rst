@@ -149,7 +149,14 @@ unit of time, it converges to it explicitly:
 
 .. math::
 
-    z^\infty = \lim_{t\to \infty} \frac{z(t)}{AF(t)} = \frac{\mathbb{E}\left[Y e^{-\delta X}\right]}{1-\mathbb{E}\left[e^{-\delta X}\right]}
+    z^\infty = \lim_{t\to \infty} z(t) = \frac{\mathbb{E}\left[Y e^{-\delta X}\right]}{1-\mathbb{E}\left[e^{-\delta X}\right]}
+    \qquad
+    q^\infty = \lim_{t\to \infty} \frac{z(t)}{AF(t)} = \delta \, z^\infty
+
+The two are the asymptotic counterparts of the two quantities above: :math:`z^\infty` is the
+total cost of an indefinitely renewed asset, :math:`q^\infty` the same thing spread per unit
+of time. Undiscounted (:math:`\delta = 0`) the first diverges, as seen above, while the
+second reduces to the renewal reward theorem's :math:`\mathbb{E}[Y] / \mathbb{E}[X]`:
 
 >>> timeline, q = process.expected_equivalent_annual_worth(500., 51, cf=1500.)
 >>> np.round(q[::10], 2)
