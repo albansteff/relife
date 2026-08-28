@@ -39,9 +39,34 @@ array([  0.,  25.,  50.,  75., 100.])
 array([0.        , 0.01236231, 0.15251764, 0.53746995, 0.96142435])
 
 After 100 time units, this fleet is expected to have gone through just under one full
-replacement per asset on average, consistent with the Weibull fit's mean lifetime of about
-73 time units (``weibull.mean()``), with the renewal function still below its long-run rate
-of :math:`1/\mathbb{E}[X]` this early in the timeline.
+replacement per asset on average, consistent with the Weibull fit's mean lifetime:
+
+>>> weibull.mean()
+np.float64(73.26074922288907)
+
+The rate at which renewals accumulate has a limit, given by the elementary renewal theorem:
+an asset lasting :math:`\mathbb{E}[X]` on average is replaced once every :math:`\mathbb{E}[X]`
+units of time, so over a long horizon
+
+.. math::
+
+    \lim_{t \to \infty} \frac{m(t)}{t} = \frac{1}{\mathbb{E}[X]}
+
+This is where the :math:`1/\mathbb{E}[X]` used throughout the maintenance pages comes from,
+and it is the same quantity the run-to-failure cost per unit of time is built on (see
+:doc:`run_to_failure`). Early in the timeline the process sits below that rate, because the
+first replacements haven't had time to accumulate:
+
+>>> float(m[-1] / 100.)
+0.009614243469643305
+>>> float(1 / weibull.mean())
+0.01364987405408034
+
+Pushing the horizon out makes the convergence visible:
+
+>>> long_timeline, long_m = renewal_process.renewal_function(5000., 501)
+>>> float(long_m[-1] / 5000.)
+0.013558971249786672
 
 This is the mechanism that everything else in the maintenance-policy layer is built on: a
 policy replaces "renewal" with "renewal *and its cost*" (see :doc:`reward_framework`) to
