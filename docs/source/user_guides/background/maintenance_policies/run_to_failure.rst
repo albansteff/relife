@@ -5,6 +5,20 @@ The simplest maintenance policy: an asset is used until it fails, then replaced,
 ``cf`` per failure [1]_. There is no preventive action: it's the baseline every other
 policy is compared against.
 
+**Assumptions**
+
+* the asset does not age, so replacing it before failure gains nothing (an exponential
+  lifetime is the textbook case: its hazard rate is constant, and a used asset is as good
+  as a new one);
+* or the consequences of a failure are mild enough not to warrant a preventive action
+  (e.g. redundant equipment).
+
+**Objectives**
+
+* forecast the expected number of failures/replacements over a period, to size the
+  maintenance resources;
+* forecast the replacement and failure budget over that same period.
+
 >>> from relife.datasets import load_circuit_breaker
 >>> from relife.lifetime_models import Weibull
 >>> from relife.policies import RunToFailurePolicy
@@ -22,9 +36,11 @@ of one cycle divided by its expected duration,
 
 .. math::
 
-    z^\infty = \frac{\mathbb{E}[Y]}{\mathbb{E}[X]} = \frac{c_f}{\mathbb{E}[X]}
+    q^\infty = \lim_{t \to \infty} q(t) = \frac{\mathbb{E}[Y]}{\mathbb{E}[X]}
+             = \frac{c_f}{\mathbb{E}[X]}
 
-where :math:`X` is the asset's lifetime. This is what the policy reports:
+where :math:`X` is the asset's lifetime and :math:`q(t)` the expected equivalent annual cost
+up to :math:`t`. This is what the policy reports:
 
 >>> policy.asymptotic_expected_equivalent_annual_cost(cf=1500.)
 np.float64(20.47481108112064)
@@ -61,9 +77,7 @@ A single cycle contains exactly one failure, so the expected undiscounted cost i
 23.12 against 20.47 above. The one-cycle criterion spreads ``cf`` over the realized lifetime
 of *this* asset and averages that ratio over the lifetime distribution; the renewal policy
 divides by the mean lifetime of a whole sequence of assets. Short lifetimes weigh far more
-heavily in the first quantity, so it comes out higher. The ``period_before_discounting``
-constructor argument (1 by default) floors the duration used in that division, so an asset
-failing almost immediately does not send the annualized cost to infinity.
+heavily in the first quantity, so it comes out higher.
 
 .. [1] Van der Weide, J. A. M., & Van Noortwijk, J. M. (2008). Renewal theory with
     exponential and hyperbolic discounting. Probability in the Engineering and

@@ -7,6 +7,16 @@ at cost ``cf`` if it fails before reaching ``ar`` [1]_. Choosing ``ar``
 trades off the risk of an expensive failure against replacing an asset that still had useful
 life left.
 
+**Assumptions**
+
+* the asset ages, i.e. its hazard rate :math:`h` is increasing;
+* it is replaced either preventively at age ``ar`` at cost ``cp``, or on failure before that
+  age at cost ``cf`` > ``cp``;
+* it is replaced by an identical asset over successive cycles (no obsolescence);
+
+**Objective**: determine the replacement age ``ar`` minimizing the asymptotic cost per unit
+of time.
+
 >>> from relife.datasets import load_circuit_breaker
 >>> from relife.lifetime_models import Weibull
 >>> from relife.policies import AgeReplacementPolicy
@@ -31,8 +41,7 @@ cost-minimizing age directly [2]_:
 
 Replacing preventively at age 47.4 costs about 11.69 per unit of time in the long run,
 against 20.47 for :doc:`run_to_failure` on the same fitted model and failure cost; see
-:doc:`cost_calculations` for where these numbers come from mechanically, and
-:doc:`../../../examples/maintenance_policy_costs` for a fuller worked example.
+:doc:`cost_calculations` for where these numbers come from mechanically.
 
 Stopping after one cycle
 --------------------------
