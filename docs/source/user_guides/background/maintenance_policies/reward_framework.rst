@@ -2,11 +2,13 @@ The reward and discounting framework
 =======================================
 
 :doc:`run_to_failure` and :doc:`preventive_age_replacement` both reduce to the same question:
-attach a cost to each renewal of the :doc:`renewal process <renewal_theory>`, and compute the
-expected cost per unit of time. ``RenewalRewardProcess`` is where that happens; the policies
-are thin wrappers over it. It takes a lifetime model, and two further ingredients supplied as
-arguments to its methods: a **reward** (how much does *this* renewal cost) and a
-**discounting rate** (how much is a cost incurred at time :math:`x` worth today).
+attach a cost to each renewal of the :doc:`renewal process <renewal_theory>`, and work out
+what that comes to per unit of time. 
+
+``RenewalRewardProcess`` is where that happens; the
+policies are wrappers over it. It takes a lifetime model, and two further ingredients
+supplied as arguments to its methods: a **reward** (how much does *this* renewal cost) and a
+**discounting rate** (how much is a cost incurred later worth today).
 
 >>> from relife.datasets import load_circuit_breaker
 >>> from relife.lifetime_models import Weibull
@@ -18,50 +20,37 @@ arguments to its methods: a **reward** (how much does *this* renewal cost) and a
 Rewards
 --------
 
-A reward answers "what does this renewal cost, given how long it lasted". It isn't a separate
-object to build: you describe it with the cost keyword arguments accepted by every method of
-the process. Two shapes are available, and they are exactly the two policies above.
+A reward answers "what does this renewal cost, given how long the asset lasted". It isn't a
+separate object to build: you describe it with the cost keyword arguments accepted by every
+method of the process.
 
-Passing ``cf`` alone means every renewal is a failure costing ``cf`` whatever its duration,
-i.e. :math:`Y = c_f`:
+Passing ``cf`` alone means every renewal is a failure, costing ``cf`` whatever its duration:
 
 >>> round(float(process.asymptotic_expected_equivalent_annual_worth(cf=1500.)), 2)
 20.47
 
-Passing ``cf``, ``cp`` and ``ar`` together instead makes the cost a step function of the
-realized lifetime :math:`X`: the asset costs ``cf`` if it failed before the replacement age,
-and ``cp`` if it reached it and was replaced preventively.
-
-.. math::
-
-    Y = \begin{cases} c_f & \text{if } X < a_r \\ c_p & \text{if } X \geq a_r \end{cases}
+Passing ``cf``, ``cp`` and ``ar`` together instead makes the cost depend on how long the
+asset actually lasted: ``cf`` if it failed before reaching the replacement age ``ar``, ``cp``
+if it reached that age and was replaced preventively.
 
 >>> round(float(process.asymptotic_expected_equivalent_annual_worth(cf=1500., cp=400., ar=47.44)), 2)
 11.69
 
-Those are the same 20.47 and 11.69 that :doc:`run_to_failure` and
-:doc:`preventive_age_replacement` report: the policies simply pick the reward shape for you
-and rename the method.
-
-The step is easy to see by pushing ``ar`` far beyond the range of plausible lifetimes, so
-that virtually no asset ever reaches the replacement age and ``cp`` is never paid:
+The switch between the two costs can be seen by pushing ``ar`` far beyond the range of
+plausible lifetimes, so that virtually no asset ever reaches the replacement age and ``cp``
+is never paid:
 
 >>> round(float(process.asymptotic_expected_equivalent_annual_worth(cf=1500., cp=400., ar=200.)), 6)
 20.474811
 
 The age-replacement reward has degenerated into the run-to-failure one. ``cp`` and ``ar``
 describe a single decision and only make sense together, so setting one without the other is
-rejected rather than silently ignored:
-
->>> process.asymptotic_expected_equivalent_annual_worth(cf=1500., cp=400.)
-Traceback (most recent call last):
-    ...
-TypeError: cp and ar must be set together.
+impossible.
 
 First-cycle costs
 ~~~~~~~~~~~~~~~~~~~
 
-In a *delayed* process (one whose first asset doesn't start new, either because
+In a *delayed* process (one whose first asset does not start new, either because
 ``first_lifetime_model`` differs from ``lifetime_model`` or because an initial age ``a0`` is
 given), the first renewal can be given its own costs through ``cf1`` and ``cp1``. Starting
 from assets already 20 time units old, and making that first replacement twice as expensive
@@ -84,10 +73,21 @@ Discounting
 ------------
 
 A cost incurred later is worth less than the same cost incurred now. ReLife applies
-exponential discounting at a rate :math:`\delta`, passed as ``discounting_rate`` to any
-method: a factor :math:`e^{-\delta x}` converts a single cost at time :math:`x` into its
-present value, and an annuity factor :math:`\frac{1-e^{-\delta x}}{\delta}` converts a total
-into the equivalent constant annual worth. At a 5 % rate:
+exponential discounting at a rate given as ``discounting_rate`` to any method. Two factors
+follow from that rate: one shrinks a single cost paid at a given date down to what it is
+worth today, the other turns a cumulated cost into the constant yearly payment worth the
+same. Writing the rate :math:`\delta`:
+
+.. math::
+
+    D(x) = e^{-\delta x}
+    \qquad\qquad
+    AF(t) = \int_0^t D(x)\,\mathrm{d}x = \frac{1 - e^{-\delta t}}{\delta}
+
+:math:`D` is the **discounting factor**: a cost :math:`c` paid at date :math:`x` is worth
+:math:`c\,D(x)` today. :math:`AF` is the **annuity factor**, the present value of paying 1
+per unit of time from 0 to :math:`t`; dividing a cumulated cost by it gives the constant
+yearly payment worth the same. Both at a 5 % rate:
 
 >>> rate = 0.05
 >>> times = np.array([0., 10., 50.])
@@ -97,18 +97,15 @@ array([1.        , 0.60653066, 0.082085  ])
 array([ 0.        ,  7.86938681, 18.35830003])
 
 A cost paid in 50 time units counts for about 8 % of its face value. With ``rate=0.``, the
-default used everywhere above, both factors reduce to no discounting at all and every cost
-counts in full whenever it occurs.
+default used everywhere above, both factors degenerate into no discounting at all
+(:math:`D = 1` and :math:`AF(t) = t`) and every cost counts in full whenever it occurs.
 
-That default is not innocuous. Without discounting, the expected *total* cost of an
-indefinitely renewed asset diverges, since the renewals never stop accumulating:
+Without discounting, the expected *total* cost of an indefinitely renewed asset diverges, 
+since the renewals never stop accumulating, which is why the policies report an annualized 
+rate instead.
 
 >>> float(process.asymptotic_expected_total_reward(cf=1500.))
 inf
-
-which is why the policies report an annualized rate instead. Introduce a rate and the same
-total becomes finite, because distant renewals contribute geometrically less:
-
 >>> round(float(process.asymptotic_expected_total_reward(cf=1500., discounting_rate=0.05)), 2)
 72.65
 
@@ -123,59 +120,91 @@ moves later:
 
 61.1 against the 47.4 obtained undiscounted in :doc:`preventive_age_replacement`.
 
-Putting it together: the renewal reward process
----------------------------------------------------
+Two ways of expressing total costs
+----------------------------------
 
-Combining a lifetime model, a reward and a discounting rate, the expected *total* reward up
-to time :math:`t` solves a renewal equation very similar to :doc:`renewal_theory`'s renewal
-function:
-
-.. math::
-
-    z(t) = \int_0^t \mathbb{E}[Y \mid X = x] e^{-\delta x} \mathrm{d}F(x)
-         + \int_0^t z(t-x) e^{-\delta x}\mathrm{d}F(x)
-
-where :math:`X` is the interarrival (lifetime) random variable, :math:`Y` its associated
-reward, and :math:`F` its cumulative distribution function. Solving it over an explicit
-timeline gives the cumulative cost trajectory:
+The **total reward** is what has been spent since time 0, discounted back to today: a
+cumulative curve, growing with the horizon. It is obtained by solving the renewal equation 
+of :doc:`renewal_theory`, except that a renewal now contributes its discounted cost instead 
+of a unit count. With a final time and a number of points, it returns the timeline 
+together with the values:
 
 >>> timeline, z = process.expected_total_reward(500., 51, cf=1500.)
 >>> np.round(z[::10], 1)
 array([   0. , 1435.2, 3418.6, 5459.5, 7508.7, 9547.7])
 
-Late in that timeline the total grows by about 2040 per 100 time units, i.e. very close to
-the 20.47 per unit of time found above: this is the long-run rate emerging. Re-expressed per
-unit of time, it converges to it explicitly:
-
-.. math::
-
-    z^\infty = \lim_{t\to \infty} z(t) = \frac{\mathbb{E}\left[Y e^{-\delta X}\right]}{1-\mathbb{E}\left[e^{-\delta X}\right]}
-    \qquad
-    q^\infty = \lim_{t\to \infty} \frac{z(t)}{AF(t)} = \delta \, z^\infty
-
-The two are the asymptotic counterparts of the two quantities above: :math:`z^\infty` is the
-total cost of an indefinitely renewed asset, :math:`q^\infty` the same thing spread per unit
-of time. Undiscounted (:math:`\delta = 0`) the first diverges, as seen above, while the
-second reduces to the renewal reward theorem's :math:`\mathbb{E}[Y] / \mathbb{E}[X]`:
+The **equivalent annual worth** is that same total re-expressed as a constant yearly payment
+covering it, the total divided by the annuity factor seen above. This is the figure to
+compare policies with, since unlike the total it does not grow with the horizon:
 
 >>> timeline, q = process.expected_equivalent_annual_worth(500., 51, cf=1500.)
 >>> np.round(q[::10], 2)
 array([ 0.  , 14.35, 17.09, 18.2 , 18.77, 19.1 ])
 
-Still climbing towards 20.47 after 500 time units: a long-run rate is a limit, and a fleet
-observed over a finite horizon sits below it.
+Both come with an ``asymptotic_`` variant that reports the limit: what renewing forever 
+costs, and what it costs per unit of time. The exact expressions are in the API documentation 
+of 
+:py:meth:`~relife.stochastic_processes.RenewalRewardProcess.asymptotic_expected_total_reward`.
 
-The four methods used on this page are the ones the policies expose under maintenance
-vocabulary, so anything shown here can be read directly off a policy object:
+Counting number of events
+-------------------------
 
-===============================================  ==============================================
-``RenewalRewardProcess``                         policy
-===============================================  ==============================================
-``expected_total_reward``                        ``expected_net_present_value``
-``asymptotic_expected_total_reward``             ``asymptotic_expected_net_present_value``
-``expected_equivalent_annual_worth``             ``expected_equivalent_annual_cost``
-``asymptotic_expected_equivalent_annual_worth``  ``asymptotic_expected_equivalent_annual_cost``
-===============================================  ==============================================
+A cost says how much, not how many. ``RenewalRewardProcess`` also inherits two counters from
+``RenewalProcess``, which split the renewals according to *why* the asset was replaced:
 
-:doc:`cost_calculations` covers that policy-level API, and what changes for the one-cycle
-policies, which integrate the reward directly instead of solving this renewal equation.
+``expected_number_of_events()``
+    the expected number of **failures** up to each point of the timeline. Preventive
+    replacements are not events and are not counted.
+
+``expected_number_of_preventive_renewals()``
+    the expected number of **preventive replacements** up to each point of the timeline.
+    ``ar`` is required here: without a replacement age there is nothing to count.
+
+Both solve a renewal equation of the same shape as the renewal function's, and by
+construction the two add back up to it, since every replacement is one or the other:
+
+>>> timeline, m = process.renewal_function(200., 201, ar=47.44)
+>>> timeline, m_failures = process.expected_number_of_events(200., 201, ar=47.44)
+>>> timeline, m_preventive = process.expected_number_of_preventive_renewals(200., 201, ar=47.44)
+>>> np.round(m_failures[::50], 3)
+array([0.   , 0.127, 0.255, 0.384, 0.515])
+>>> np.round(m_preventive[::50], 3)
+array([0.   , 0.873, 1.748, 2.624, 3.504])
+>>> bool(np.allclose(m, m_failures + m_preventive))
+True
+
+Over 200 time units the fleet goes through about four replacements per asset, of which barely
+half a failure. Undiscounted, the expected total reward *is* those two counters weighted by 
+their costs, nothing more:
+
+>>> timeline, z = process.expected_total_reward(200., 201, cf=1500., cp=400., ar=47.44)
+>>> np.round(z[::50], 2)
+array([   0.  ,  539.97, 1081.47, 1625.66, 2173.95])
+>>> bool(np.allclose(z, 1500. * m_failures + 400. * m_preventive))
+True
+
+Summary of the methods
+----------------------
+
+The six methods all share the same arguments: the costs ``cf``, ``cp`` and ``ar``, their 
+first-cycle variants ``cf1`` and ``cp1``, the initial age ``a0``, and ``discounting_rate``.
+
+The four **finite-horizon** ones take a final time ``tf`` and a number of points
+``nb_steps``, and return a ``(timeline, values)`` tuple, the timeline being ``nb_steps``
+points evenly spread from 0 to ``tf``. The two **asymptotic** ones take no timeline at all
+and return a single value.
+
+===============================================  ==========  =================================================
+method                                           horizon     what it gives
+===============================================  ==========  =================================================
+``expected_total_reward``                        finite      cost accumulated since time 0
+``expected_equivalent_annual_worth``             finite      that cost as a constant yearly payment
+``expected_number_of_events``                    finite      failures accumulated since time 0
+``expected_number_of_preventive_renewals``       finite      preventive replacements accumulated since time 0
+``asymptotic_expected_total_reward``             infinite    cost of renewing forever
+``asymptotic_expected_equivalent_annual_worth``  infinite    long-run annual cost of renewing forever
+===============================================  ==========  =================================================
+
+:doc:`cost_calculations` covers the policy-level API these reward methods are exposed
+through, and what changes for the one-cycle policies, which integrate the reward directly
+instead of solving a renewal equation.
