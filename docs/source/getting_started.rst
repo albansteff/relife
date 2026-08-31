@@ -148,7 +148,7 @@ np.float64(0.03502316435647632)
 np.float64(0.039082387898486094)
 
 Replacing at age ``ar_star`` (about 59 years) is roughly 10 % cheaper per year than running
-the assets to failure. :doc:`user_guides/background/maintenance_policies/cost_calculations`
+the assets to failure. :doc:`user_guides/background/maintenance_policies/preventive_age_replacement`
 explains where these numbers come from.
 
 4. Projection of consequences

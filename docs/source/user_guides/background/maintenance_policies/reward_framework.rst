@@ -204,7 +204,3 @@ method                                           horizon     what it gives
 ``asymptotic_expected_total_reward``             infinite    cost of renewing forever
 ``asymptotic_expected_equivalent_annual_worth``  infinite    long-run annual cost of renewing forever
 ===============================================  ==========  =================================================
-
-:doc:`cost_calculations` covers the policy-level API these reward methods are exposed
-through, and what changes for the one-cycle policies, which integrate the reward directly
-instead of solving a renewal equation.

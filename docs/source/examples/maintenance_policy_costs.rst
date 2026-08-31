@@ -188,4 +188,4 @@ analysis, so it should be taken from it rather than chosen here.
 
 If a single replacement decision is being made about assets currently in service, with no
 commitment to what replaces them, the one-cycle policies answer that question instead; see
-:doc:`../user_guides/background/maintenance_policies/cost_calculations`.
+:doc:`../user_guides/background/maintenance_policies/from_process_to_policy`.

@@ -55,6 +55,18 @@ how often the asset needs replacing (i.e. on the fitted lifetime model), not on 
 decision variable. Compare with :doc:`preventive_age_replacement`, where replacing *before*
 failure can lower this expected cost.
 
+Undiscounted, the net present value of a policy that renews forever is infinite, since 
+the failures never stop accumulating:
+
+>>> float(policy.asymptotic_expected_net_present_value(cf=1500.))
+inf
+
+which is why the annualized figure above is the one to reason with, unless a discounting rate
+is supplied and distant failures are made to weigh less:
+
+>>> round(float(policy.asymptotic_expected_net_present_value(cf=1500., discounting_rate=0.05)), 2)
+72.65
+
 Stopping after one cycle
 --------------------------
 
