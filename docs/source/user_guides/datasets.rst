@@ -1,7 +1,7 @@
 Datasets
 =========
 
-ReLife ships three example datasets under ``relife.datasets``, all real RTE-France
+ReLife ships three example datasets under ``relife.datasets``, all about
 power-grid equipment lifetime data. Each one is loaded as a NumPy structured array with a
 ``time`` (observed lifetime), ``event`` (``True`` if the failure was actually observed,
 ``False`` if right-censored) and ``entry`` (left-truncation age) field; see
@@ -17,7 +17,7 @@ Circuit breakers
 >>> len(dataset)
 4204
 
-4204 circuit breakers, no covariates. Only a small fraction (204, ~5%) were actually
+4204 circuit breakers with no covariates. Only a small fraction (204, ~5%) were actually
 observed failing (the rest are right-censored), and 4000 were already in service before
 entering observation. This heavy censoring makes it a good illustration of
 :doc:`background/lifetime_modeling/non_parametric_models` (see
@@ -33,7 +33,7 @@ Power transformers
 >>> len(dataset)
 1650
 
-1650 power transformers, no covariates, a more balanced mix of 318 observed failures and
+1650 power transformers with no covariates, a more balanced mix of 318 observed failures and
 1158 left-truncated units. Used for parametric distribution fitting throughout the
 :doc:`background/lifetime_modeling/index` guide (see
 :doc:`../examples/distributions_fitting`).
