@@ -331,19 +331,19 @@ NumPy documentation style. Here are important points to have in mind if you want
 Doctests
 --------
 
-Code blocks in the user guide (``docs/source/getting_started.rst``, ``docs/source/user_guides/``,
-``docs/source/examples/``) are written as real doctests, not illustrative snippets: every ``>>>``
-block is executed and its output checked. Run them with:
+Code blocks in the user guide (``docs/source/getting_started.rst`` and
+``docs/source/user_guides/``) are written as real doctests, not illustrative snippets: every
+``>>>`` block is executed and its output checked. Run them with:
 
 .. code-block::
 
-    $ pytest --doctest-glob="*.rst" docs/source/getting_started.rst docs/source/user_guides docs/source/examples
+    $ pytest --doctest-glob="*.rst" docs/source/getting_started.rst docs/source/user_guides
 
 For **uv** users:
 
 .. code-block::
 
-    $ uv run pytest --doctest-glob="*.rst" docs/source/getting_started.rst docs/source/user_guides docs/source/examples
+    $ uv run pytest --doctest-glob="*.rst" docs/source/getting_started.rst docs/source/user_guides
 
 ``--doctest-glob="*.rst"`` is what makes pytest collect the reST files ; without it they are
 ignored. Every ``>>>`` block of a collected file is run, including the ones nested in a

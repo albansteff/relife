@@ -60,8 +60,8 @@ Replacing too early (small ``ar``) wastes useful life and pays the preventive co
 often; replacing too late drifts back towards the run-to-failure cost as more failures slip
 through before the preventive replacement age is reached.
 
-Rather than scanning candidate ages by hand, ``compute_optimal_ar`` locates the minimum of 
-this curve[2]_:
+Rather than scanning candidate ages by hand, ``compute_optimal_ar`` locates the minimum of
+this curve [2]_:
 
 >>> ar_star = policy.compute_optimal_ar(cf=1500., cp=400.)
 >>> round(float(ar_star), 2)
@@ -85,9 +85,6 @@ sharp the minimum is changes:
     the optimal age: the fraction of assets that will still cost ``cf`` even under the
     optimal policy, since not every asset can be caught in time.
 
-Comparing this policy against the others for a given fleet and set of costs is the subject of
-:doc:`../../../examples/maintenance_policy_costs`.
-
 Projecting the replacements
 ------------------------------
 
@@ -105,8 +102,8 @@ replacements themselves, year by year:
 Both return a timeline of whole years and one value per year, so they read directly as a
 maintenance schedule.
 
->>> timeline, n_replacements = policy.annual_number_of_replacements(60, ar=47.44, a0=np.array([0., 10., 20., 30.])
->>> timeline, n_failures = policy.annual_number_of_failures(60, ar=47.44, a0=np.array([0., 10., 20., 30.])
+>>> timeline, n_replacements = policy.annual_number_of_replacements(60, ar=47.44, a0=np.array([0., 10., 20., 30.]))
+>>> timeline, n_failures = policy.annual_number_of_failures(60, ar=47.44, a0=np.array([0., 10., 20., 30.]))
 
 These two methods are the year-by-year form of the counters ``expected_number_of_events`` and
 ``expected_number_of_preventive_renewals`` described in :doc:`reward_framework`, which report

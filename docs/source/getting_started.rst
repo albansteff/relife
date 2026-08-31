@@ -16,7 +16,7 @@ ReLife's workflow has four steps, left to right in the figure above:
    replacements per year).
 
 This page walks the four steps on a built-in dataset. See the :doc:`user_guides/index` for the
-concepts behind each one, and :doc:`examples/index` for more worked cases.
+concepts behind each one.
 
 1. Data collection
 ------------------
@@ -223,5 +223,4 @@ Next steps
 
 - :doc:`user_guides/index` for the concepts (censoring and truncation, lifetime models,
   maintenance policies) behind the calls above.
-- :doc:`examples/index` for complete, dataset-driven examples of each modeling approach.
 - :doc:`api/index` for the full reference.

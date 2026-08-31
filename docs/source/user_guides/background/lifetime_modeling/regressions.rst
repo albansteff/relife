@@ -135,8 +135,7 @@ np.float64(24431.4)
 np.float64(26464.8)
 
 Both models have five parameters, so on this dataset the proportional hazard form fits
-distinctly better than the accelerated failure time one. See
-:doc:`../../../examples/regression_modeling` for a complete, worked example.
+distinctly better than the accelerated failure time one.
 
 .. _cox_model:
 
@@ -224,5 +223,4 @@ array([0.9999, 0.9997, 0.9995])
     >>> plt.show()
 
 The two assets shown here have different covariate values (different acid exposure), hence
-the different estimated survival curves. See
-:doc:`../../../examples/semi_parametric_cox` for a more complete worked example.
+the different estimated survival curves.

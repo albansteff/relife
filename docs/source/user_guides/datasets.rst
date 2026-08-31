@@ -20,8 +20,7 @@ Circuit breakers
 4204 circuit breakers with no covariates. Only a small fraction (204, ~5%) were actually
 observed failing (the rest are right-censored), and 4000 were already in service before
 entering observation. This heavy censoring makes it a good illustration of
-:doc:`background/lifetime_modeling/non_parametric_models` (see
-:doc:`../examples/non_parametric_estimation`).
+:doc:`background/lifetime_modeling/non_parametric_models`.
 
 Power transformers
 ---------------------
@@ -35,8 +34,7 @@ Power transformers
 
 1650 power transformers with no covariates, a more balanced mix of 318 observed failures and
 1158 left-truncated units. Used for parametric distribution fitting throughout the
-:doc:`background/lifetime_modeling/index` guide (see
-:doc:`../examples/distributions_fitting`).
+:doc:`background/lifetime_modeling/index` guide.
 
 Insulator strings
 --------------------
@@ -51,5 +49,5 @@ Insulator strings
 12000 insulator strings, the only dataset with covariates: ``pHCl``, ``pH2SO4`` and
 ``HNO3``, the acid concentrations the insulators are exposed to, which accelerate their
 degradation. 2196 observed failures and 8216 left-truncated units. Used for both the
-parametric regression and semi-parametric Cox examples (see
-:doc:`../examples/regression_modeling` and :doc:`../examples/semi_parametric_cox`).
+parametric regression and the semi-parametric Cox model in
+:doc:`background/lifetime_modeling/regressions`.
