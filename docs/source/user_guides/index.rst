@@ -2,7 +2,9 @@ User guides
 ============
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 3
+    :numbered:
 
     background/index
     datasets
+    sampling
