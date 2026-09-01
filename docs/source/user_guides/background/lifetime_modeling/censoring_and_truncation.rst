@@ -11,8 +11,8 @@ estimates. ReLife handles it through two arguments: ``event`` and ``entry``.
 The observation scheme
 -------------------------
 
-For each asset, four dates matter: when the *observation window* opens (:math:`t_{start}`)
-and closes (:math:`t_{end}`), and when the asset itself was installed (:math:`t_{init}`) and
+For each asset, four dates matter: when the *observation window* starts (:math:`t_{start}`)
+and ends (:math:`t_{end}`), and when the asset itself was installed (:math:`t_{init}`) and
 failed (:math:`t_{fail}`, if that was actually observed). The figure below lines up six
 assets on the same calendar to show every combination that can occur:
 
@@ -21,7 +21,7 @@ assets on the same calendar to show every combination that can occur:
     :width: 100%
 
     Observation scheme for six assets. A filled circle is an observed failure; an open circle means the asset was still working
-    when the observation window closed at :math:`t_{end}` (**right-censoring**); a
+    when the observation window ended at :math:`t_{end}` (**right-censoring**); a
     right-pointing triangle before :math:`t_{start}` means the asset was already installed
     before observation began (**left-truncation** if it fails after :math:`t_{start}`, or
     **left-censoring**, dashed, if a failure before :math:`t_{start}` is only known to have
@@ -59,9 +59,9 @@ Left truncation
 -----------------
 
 An observation is **left-truncated** when the asset had already survived up to some age
-before it entered observation. For instance, monitoring only started once a transformer
+before it was observed. For instance, monitoring only started once a transformer
 had already been in service for a while. Assets of the same population that failed *before*
-entering observation are invisible to the dataset, which biases naive estimates towards
+observation are invisible to the dataset, which biases naive estimates towards
 longer lifetimes if left unaccounted for. This is captured with the ``entry`` field: the age
 at which the asset entered observation (``entry=0`` if it was observed from the start of its
 life).
@@ -70,9 +70,9 @@ life).
 array([(34.3,  True, 34.), (45.1,  True, 44.)],
       dtype=[('time', '<f8'), ('event', '?'), ('entry', '<f8')])
 
-Here, both transformers were already 34 and 44 (respectively) units old when they entered
-the study, and were then observed failing shortly after, at 34.3 and 45.1. More than 70% of
-the fleet in this dataset was already in service before entering observation:
+Here, both transformers were already 34 and 44 (respectively) units old when they were
+first observed, and were then failing shortly after, at 34.3 and 45.1. More than 70% of
+the fleet in this dataset was already in service before observation:
 
 >>> (dataset["entry"] > 0).sum(), len(dataset)
 (np.int64(1158), 1650)
@@ -97,7 +97,7 @@ a mean lifetime under three assumptions gives:
 Ignoring censoring entirely (mortality bias) systematically *underestimates* how long assets
 last, since the (longer-lived) censored units get discarded or miscounted as short-lived
 ones. Ignoring left-truncation (survivor bias) does the opposite: it *overestimates*
-lifetimes, because units that failed before entering observation are invisible to the
+lifetimes, because units that failed before observation are invisible to the
 sample, leaving only the units hardy enough to have survived that long. This is exactly why
 every ReLife lifetime model accounts for both directly in its likelihood (see
 :doc:`distributions`), rather than requiring you to drop or approximate

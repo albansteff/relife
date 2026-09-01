@@ -10,9 +10,9 @@ ReLife's workflow has four steps, left to right in the figure above:
 
 1. You **collect failure data** on a fleet of assets.
 2. You **fit a lifetime model** to that data.
-3. You **build a maintenance policy** (run-to-failure, or preventive age replacement) and
+3. You **model a maintenance policy** (run-to-failure, or preventive age replacement) and
    optimize it against costs.
-4. You **project the consequences** of that policy (for instance the expected number of
+4. You **compute the consequences** of that policy (for instance the expected number of
    replacements per year).
 
 This page walks the four steps on a built-in dataset. See the :doc:`user_guides/index` for the
@@ -36,9 +36,9 @@ familiar with the asset, see `the Wikipedia page
 
 - ``time``: the observed lifetime values.
 - ``event``: whether the failure actually happened inside the observation window
-  (``False`` means the lifetime is *right-censored*, i.e. the asset was still alive when we
-  stopped looking).
-- ``entry``: the age of the asset when the observation window opened (*left-truncation*).
+  (``False`` means the lifetime is *right-censored*, i.e. the asset was still alive at the 
+  end of the observation window).
+- ``entry``: the age of the asset at the beginning of the observation window (*left-truncation*).
 
 >>> dataset["time"][:3]
 array([34.3, 45.1, 53.2])
@@ -80,8 +80,11 @@ flat in between, so it follows the data without imposing any parameters on it:
     >>> plt.show()
 
 Then fit a **parametric** model (here a Weibull distribution). The two fitted values are the Weibull 
-``shape`` and ``rate``. A shape above 1 means the hazard rate increases with age: the assets wear 
-out, which is what makes preventive replacement worth considering at all.
+``shape`` and ``rate``. A shape above 1 means the hazard rate increases with age: the assets ages with 
+time, which is what makes preventive replacement worth considering at all. A shape equal to 1 means the
+hazard rate is constant with time, the Weibull distribution reduces to an Exponential distribution, and
+a shape below 1 means there is significant "infant mortality", or defective items failing early and the 
+hazard rate decreasing over time as the defective items are out of the population.
 
 >>> from relife.lifetime_models import Weibull
 >>> weibull = Weibull().fit(
