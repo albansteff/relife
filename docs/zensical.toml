@@ -1,0 +1,66 @@
+[project]
+site_name = "relife"
+site_description = "Package for optimizing infrastructure investment decisions in Python"
+site_author = "RTE-SAGA"
+site_url = "http://opensource.rte-france.com/relife/"
+copyright = "Copyright &copy; 2007 - 2026, RTE-SAGA (Apache 2.0 License)"
+repo_url = "https://github.com/rte-france/relife/"
+repo_name = "rte-france/relife"
+docs_dir = "source"
+
+nav = [
+  { "Home" = "index.md" },
+  { "Install" = "install.md" },
+  { "Getting started" = "getting_started.md" },
+  { "User guides" = [
+    { "Overview" = "user_guides/index.md" },
+    { "Background" = [
+      { "Overview" = "user_guides/background/index.md" },
+      { "About NumPy" = "user_guides/background/numpy_basics.md" },
+      { "Lifetime modeling" = [
+        { "Overview" = "user_guides/background/lifetime_modeling/index.md" },
+        { "Censoring and truncation" = "user_guides/background/lifetime_modeling/censoring_and_truncation.md" },
+        { "Non-parametric lifetime models" = "user_guides/background/lifetime_modeling/non_parametric_models.md" },
+        { "Parametric distributions" = "user_guides/background/lifetime_modeling/distributions.md" },
+        { "Regressions" = "user_guides/background/lifetime_modeling/regressions.md" },
+      ] },
+      { "Maintenance policies" = [
+        { "Overview" = "user_guides/background/maintenance_policies/index.md" },
+        { "Renewal processes" = "user_guides/background/maintenance_policies/renewal_theory.md" },
+        { "Reward and discounting" = "user_guides/background/maintenance_policies/reward_framework.md" },
+        { "From process to policy" = "user_guides/background/maintenance_policies/from_process_to_policy.md" },
+        { "Run-to-failure" = "user_guides/background/maintenance_policies/run_to_failure.md" },
+        { "Preventive age replacement" = "user_guides/background/maintenance_policies/preventive_age_replacement.md" },
+      ] },
+    ] },
+    { "Datasets" = "user_guides/datasets.md" },
+  ] },
+  { "API" = [
+    { "Overview" = "api/index.md" },
+    { "Base classes" = "api/base_class.md" },
+    { "Lifetime models" = "api/lifetime_models.md" },
+    { "Stochastic processes" = "api/stochastic_processes.md" },
+    { "Maintenance policies" = "api/policies.md" },
+    { "Built-in datasets" = "api/datasets.md" },
+    { "Quadratures" = "api/quadratures.md" },
+    { "Typing" = "api/typing.md" },
+  ] },
+  { "For developers" = "for_developers/index.md" },
+]
+
+extra_javascript = [
+  "javascripts/mathjax.js",
+  "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+]
+
+[project.theme]
+logo = "_static/small_relife.png"
+favicon = "_static/relife_favicon.png"
+
+[project.extra.version]
+provider = "mike"
+alias = true
+
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["../src"]
+options = { docstring_style = "numpy", inherited_members = true, show_source = false, extensions = ["_ext/dynamic_docstrings.py"] }

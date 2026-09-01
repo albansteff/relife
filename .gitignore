@@ -16,11 +16,7 @@ wheels/
 .ipynb_checkpoints
 
 # docs
-docs/_build/
-docs/build/
-# exclude all api doc files, except index.rst
-docs/source/api/*
-!docs/source/api/index.rst
+docs/site/
 
 # Pycharm
 .idea/

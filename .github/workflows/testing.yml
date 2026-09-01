@@ -30,5 +30,5 @@ jobs:
 
       - name: Running doctests
         run: |
-          pytest --doctest-glob="*.rst" docs/source/getting_started.rst docs/source/user_guides
+          pytest --doctest-glob="*.md" docs/source/getting_started.md docs/source/user_guides
           pytest --doctest-modules src/relife/datasets/load.py
