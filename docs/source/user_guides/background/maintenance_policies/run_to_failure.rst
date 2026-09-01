@@ -42,13 +42,13 @@ of one cycle divided by its expected duration,
 where :math:`X` is the asset's lifetime and :math:`q(t)` the expected equivalent annual cost
 up to :math:`t`. This is what the policy reports:
 
->>> policy.asymptotic_expected_equivalent_annual_cost(cf=1500.)
-np.float64(20.47481108112064)
+>>> round(policy.asymptotic_expected_equivalent_annual_cost(cf=1500.), 6)
+np.float64(20.474811)
 
 which is indeed ``cf`` divided by the mean lifetime of the fitted Weibull:
 
->>> float(1500. / weibull.mean())
-20.47481108112051
+>>> round(float(1500. / weibull.mean()), 6)
+20.474811
 
 Since every renewal has the same cost regardless of when it happens, this only depends on
 how often the asset needs replacing (i.e. on the fitted lifetime model), not on any

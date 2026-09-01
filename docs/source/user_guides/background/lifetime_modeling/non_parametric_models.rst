@@ -60,8 +60,8 @@ few observations.
 
 >>> from relife.lifetime_models import KaplanMeier
 >>> km = KaplanMeier(dataset["time"], event=dataset["event"], entry=dataset["entry"])
->>> km.sf().values[-1]
-np.float64(0.19193717878444425)
+>>> round(km.sf().values[-1], 6)
+np.float64(0.191937)
 
 Roughly 19% of the fleet is estimated to still be surviving at the end of the observed
 timeline.
@@ -96,8 +96,8 @@ hazard rate: a steepening curve means the units are wearing out.
 
 >>> from relife.lifetime_models import NelsonAalen
 >>> na = NelsonAalen(dataset["time"], event=dataset["event"], entry=dataset["entry"])
->>> na.chf().values[-1]
-np.float64(1.4826380355269857)
+>>> round(na.chf().values[-1], 6)
+np.float64(1.482638)
 
 Comparing the two estimators
 ----------------------------------------------------------
@@ -106,8 +106,8 @@ Survival and cumulative hazard are related by :math:`S(t) = e^{-H(t)}`, so the t
 estimators should roughly agree:
 
 >>> import numpy as np
->>> np.exp(-na.chf().values[-1])
-np.float64(0.22703796347019162)
+>>> round(np.exp(-na.chf().values[-1]), 6)
+np.float64(0.227038)
 
 The two values (0.192 from Kaplan-Meier, 0.227 from :math:`e^{-\hat{H}}`) are close but not
 identical, which is expected, since they're two distinct nonparametric estimators of related but

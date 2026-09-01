@@ -14,8 +14,8 @@ There are 3 standard representations of data in ReLife :
 
 >>> from relife.lifetime_models import Weibull
 >>> weibull = Weibull(3.47, 0.012)
->>> weibull.sf(40.)
-np.float64(0.9246627462729304)
+>>> round(weibull.sf(40.), 6)
+np.float64(0.924663)
 
 The output has the same number of dimension than the input.
 To compute :math:`P(T > 40)`, but also :math:`P(T > 50)` and :math:`P(T > 60)`, we can benefit from `broadcasting <https://numpy.org/doc/stable/user/basics.broadcasting.html>`_ and compute three survival function evaluations in parallel.

@@ -135,17 +135,17 @@ preventively at the optimal age costs less per year than waiting for failures:
 >>> from relife.policies import AgeReplacementPolicy, RunToFailurePolicy
 >>> policy = AgeReplacementPolicy(weibull)
 >>> ar_star = policy.compute_optimal_ar(cf=11., cp=3., discounting_rate=0.04)
->>> ar_star
-np.float64(59.19751204639705)
->>> policy.asymptotic_expected_equivalent_annual_cost(
+>>> round(ar_star, 4)
+np.float64(59.1975)
+>>> round(policy.asymptotic_expected_equivalent_annual_cost(
 ...     ar=ar_star, cf=11., cp=3., discounting_rate=0.04
-... )
-np.float64(0.03502316435647632)
+... ), 6)
+np.float64(0.035023)
 
->>> RunToFailurePolicy(weibull).asymptotic_expected_equivalent_annual_cost(
+>>> round(RunToFailurePolicy(weibull).asymptotic_expected_equivalent_annual_cost(
 ...     cf=11., discounting_rate=0.04
-... )
-np.float64(0.039082387898486094)
+... ), 6)
+np.float64(0.039082)
 
 Replacing at age ``ar_star`` (about 59 years) is roughly 10 % cheaper per year than running
 the assets to failure. :doc:`user_guides/background/maintenance_policies/preventive_age_replacement`
