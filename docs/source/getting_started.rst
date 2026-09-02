@@ -8,15 +8,31 @@ Getting Started
 
 ReLife's workflow has four steps, left to right in the figure above:
 
-1. You **collect failure data** on a fleet of assets.
-2. You **fit a lifetime model** to that data.
-3. You **model a maintenance policy** (run-to-failure, or preventive age replacement) and
-   optimize it against costs.
+1. You **collect data** on a fleet of assets.
+2. You **fit a statistical model** to that data.
+3. You **model a maintenance policy** and optimize it against costs.
 4. You **compute the consequences** of that policy (for instance the expected number of
    replacements per year).
 
-This page walks the four steps on a built-in dataset. See the :doc:`user_guides/index` for the
-concepts behind each one.
+The four steps never change, but what goes inside each of them depends on the **event of
+interest**, and on the modelling approach that event calls for. ReLife covers, or aims to
+cover, three:
+
+- **lifetime models**, for a single terminal event: the asset fails once and is replaced. What
+  is modelled is a duration.
+- **non-homogeneous Poisson processes**, for repairable assets: the same asset fails several
+  times and each repair is *minimal*, meaning it restores service without rejuvenating the
+  asset. What is modelled is the rate of recurrent failures.
+- **gamma processes**, for gradual deterioration measured on the asset (corrosion, wear, loss
+  of thickness): the event of interest is a threshold crossing rather than a failure. Not
+  implemented yet.
+
+That choice propagates through the whole workflow: it decides what the field data has to
+record, which model is fitted to it, and which policies that model can then be plugged into.
+
+This page walks the four steps for the **lifetime model** approach, on a built-in dataset: one
+asset, one failure, one replacement. It is the most common case, not the only one. See the
+:doc:`user_guides/index` for the concepts behind each step.
 
 1. Data collection
 ------------------
@@ -51,6 +67,17 @@ Censoring and truncation are not details to be cleaned away. They carry informat
 every ReLife estimator accounts for them. See
 :doc:`user_guides/background/lifetime_modeling/censoring_and_truncation`.
 
+.. note::
+
+    **Data is always the starting point, but not always the same data.** The three fields above
+    are what a *lifetime* model needs: one duration per asset, plus what is known about how the
+    observation window cut it. A non-homogeneous Poisson process is fitted on something else,
+    the *sequence* of failure and repair dates observed on each asset, so a single asset
+    contributes several records instead of one. A gamma process would need deterioration
+    measurements: a measured level and the date it was measured, repeated over the asset's
+    life. Which event you intend to model is therefore a decision to take before collecting,
+    since it dictates what the records have to contain.
+
 2. Lifetime model estimation
 ----------------------------
 
@@ -79,7 +106,9 @@ flat in between, so it follows the data without imposing any parameters on it:
     >>> _ = plt.legend()
     >>> plt.show()
 
-Then fit a **parametric** model (here a Weibull distribution). The two fitted values are the Weibull 
+Then fit a **parametric** model (here a Weibull distribution). *Parametric* means the whole
+model is carried by a fixed, small set of numbers: fitting is estimating those numbers from the
+data, and ``get_params`` reads them back. The two fitted values are the Weibull
 ``shape`` and ``rate``. A shape above 1 means the hazard rate increases with age: the assets ages with 
 time, which is what makes preventive replacement worth considering at all. A shape equal to 1 means the
 hazard rate is constant with time, the Weibull distribution reduces to an Exponential distribution, and
@@ -118,19 +147,45 @@ the parametric shape you chose is compatible with what the data shows on its own
     >>> _ = plt.legend()
     >>> plt.show()
 
+.. note::
+
+    **Every model ReLife fits is a model, and they all share one interface.** They
+    are built either unparametrized or with known parameter values, ``fit`` estimates the
+    parameters from data by maximum likelihood, and ``get_params`` / ``set_params`` read and
+    write them as a flat vector. That interface is not specific to distributions: a regression
+    (:doc:`user_guides/background/lifetime_modeling/regressions`) is the same object with one
+    extra coefficient per covariate, and a
+    :py:class:`~relife.stochastic_processes.NonHomogeneousPoissonProcess` is parametrized by the
+    lifetime model that defines its intensity, so it is fitted from repair histories in the same
+    way. Non-parametric estimators such as ``KaplanMeier`` are the exception: they hold no
+    parameters at all, which is precisely what makes them a good first look at the data.
+
 3. Maintenance policy optimization
 ----------------------------------
 
 A lifetime model alone doesn't say *when* to replace an asset. For that you wrap it in a
-policy and give it the two costs that drive the trade-off:
+policy. A policy is a model as well, and it has parameters of two kinds: **a survival law**,
+passed once when the policy is built, and **the costs** attached to each kind of event, passed
+to the methods that need them. Here the two costs that drive the trade-off are:
 
 - ``cp``, the cost of a **preventive** replacement, that you can choose;
 - ``cf``, the cost of an **unexpected failure**, which is (almost always, some specific cases exists) 
   higher because it includes the undesirable consequences of the failure itself.
 
-Costs must have a specific unit: euros, dollars, millions of either, or
-anything else works, as long as ``cp`` and ``cf`` use the *same* unit. Whatever you put in is
-what comes back out, so the annual costs below are in that same unit too.
+Costs have no imposed unit: euros, dollars, millions of either, or anything else works, as
+long as ``cp`` and ``cf`` use the *same* unit. Whatever you put in is what comes back out, so
+the annual costs below are in that same unit too. Nothing constrains what you put *into* a
+cost either: the direct expense of the replacement, but also the socio-economic consequences
+of the failure, such as unsupplied energy or the shadow price of carbon, which is often what
+makes a renewal investment defensible.
+
+The **time** unit is freer than the method names suggest. ReLife follows an annual accounting
+convention in its naming (``asymptotic_expected_equivalent_annual_cost``,
+``annual_number_of_replacements``, and a ``discounting_rate`` read as a yearly rate), because
+that is the horizon asset managers budget on. But no method converts anything: the time unit
+is whichever unit the lifetimes you fitted are expressed in. Fit on operating hours or on
+switching cycles and "annual" reads as "per hour" or "per cycle", with the discounting rate
+expressed per that same unit. Only consistency between lifetimes, horizons and rate matters.
 
 Here ``cp`` = 3 and ``cf`` = 11, with a 4 % discounting rate. Replacing every asset
 preventively at the optimal age costs less per year than waiting for failures:
@@ -153,6 +208,18 @@ np.float64(0.039082)
 Replacing at age ``ar_star`` (about 59 years) is roughly 10 % cheaper per year than running
 the assets to failure. :doc:`user_guides/background/maintenance_policies/preventive_age_replacement`
 explains where these numbers come from.
+
+.. note::
+
+    **Run-to-failure and age replacement are two ends of a spectrum, not the whole catalogue.**
+    Both assume the asset is *replaced* at the terminal event, which is what a lifetime model
+    describes. When the asset is *repaired* instead and goes on failing, the decision becomes
+    when to stop repairing and replace: that is
+    :py:class:`~relife.policies.NonHomogeneousPoissonAgeReplacementPolicy`, built on a
+    non-homogeneous Poisson process rather than on a lifetime model. Each policy also comes in
+    a *renewal* variant, for planning a fleet over the long run, and a *one-cycle* variant, for
+    a decision about the asset currently in service. See
+    :doc:`user_guides/background/maintenance_policies/from_process_to_policy`.
 
 4. Projection of consequences
 -----------------------------
@@ -220,6 +287,16 @@ ReLife has no built-in plot for this, but the arrays go straight into `Matplotli
 The replacement waves you see are the fleet's current age distribution propagating forward:
 assets installed around the same time come due around the same time, and the peaks damp out
 over successive cycles.
+
+.. note::
+
+    **What gets projected follows from the model that was fitted.** With a lifetime model, the
+    renewal equation counts *replacements*, over a horizon expressed in the time unit of the
+    fitted data (170 years here, because the transformer lifetimes are in years). With a
+    non-homogeneous Poisson process, the same step projects the expected number of *repairs*,
+    and a replacement count only appears once a replacement decision is put on top of it.
+    Either way what comes out is a plain NumPy array, one value per time step and per asset, so
+    turning it into a budget, a spare-parts stock or a maintenance workload is left to you.
 
 Next steps
 ----------
