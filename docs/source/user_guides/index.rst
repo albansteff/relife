@@ -8,3 +8,4 @@ User guides
     background/index
     datasets
     sampling
+    examples
