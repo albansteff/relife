@@ -35,6 +35,10 @@ extensions = [
 
 myst_enable_extensions = ["colon_fence"]  # required by sphinx design with myst-parser
 
+# plot_directive links: keep "Source code" and offer a single vector download instead of
+# the default png / hires.png / pdf trio (the first format is also the one displayed)
+plot_formats = ["svg"]
+
 autodoc_typehints = "none"
 # autosummary_generate = True
 
